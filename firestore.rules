@@ -1,0 +1,292 @@
+rules_version = '2';
+
+// ===============================================================
+// Assumed Data Model ("Chùa Thanh Tịnh 3D")
+// ===============================================================
+//
+// This security rules file assumes the following data structures:
+//
+// Collection: users
+// Document ID: {userId} (must match Firebase Auth UID)
+// Fields:
+//   - uid: string (required, immutable, 1..128 chars, must equal userId and request.auth.uid) - Unique player ID
+//   - username: string (required, immutable, 1..40 chars) - Account login username (non-PII display handle)
+//   - monkName: string (required, 1..32 chars) - Dharma name / display name in the temple
+//   - robeColor: string (required, enum: ['#d97706', '#991b1b', '#78350f', '#4b5563', '#1e3a8a']) - Monk robe hex color
+//   - meritPoints: number (required, >= 0, <= 1000000000) - Accumulated merit points (Công Đức)
+//   - createdAt: number | timestamp (required, immutable) - Profile creation time
+//   - updatedAt: number | timestamp (optional) - Last profile update time
+//
+// Collection: presence
+// Document ID: {userId} (must match Firebase Auth UID)
+// Fields:
+//   - uid: string (required, immutable, 1..128 chars, must equal userId and request.auth.uid) - Unique player ID
+//   - monkName: string (required, 1..32 chars) - Dharma name shown above character
+//   - robeColor: string (required, enum: ['#d97706', '#991b1b', '#78350f', '#4b5563', '#1e3a8a']) - Monk robe hex color
+//   - position: map (required, keys: ['x', 'y', 'z'], numbers in [-1000, 1000]) - 3D coordinates in temple courtyard
+//   - rotationY: number (required, in [-1000, 1000]) - Character Y-axis rotation in radians
+//   - actionState: string (required, enum: ['idle', 'walking', 'praying', 'wooden_fish', 'bell', 'fortune']) - Current animation/action
+//   - chatBubble: map | null (optional, keys: ['text', 'expiresAt'], text: 0..300 chars, expiresAt: number | timestamp) - Floating overhead speech bubble
+//   - meritPoints: number (required, >= 0, <= 1000000000) - Current merit points
+//   - lastUpdated: number | timestamp (required) - Last presence sync timestamp
+//
+// Collection: messages
+// Document ID: {messageId}
+// Fields:
+//   - id: string (optional, immutable, 1..128 chars) - Message identifier
+//   - uid: string (required, immutable, 1..128 chars, must equal request.auth.uid) - Sender UID
+//   - monkName: string (required, immutable, 1..32 chars) - Sender Dharma name
+//   - robeColor: string (required, immutable, enum: ['#d97706', '#991b1b', '#78350f', '#4b5563', '#1e3a8a']) - Sender robe color
+//   - text: string (required, immutable, 1..300 chars) - Chat message content
+//   - createdAt: number | timestamp (required, immutable) - Message creation timestamp
+//   - type: string (required, immutable, enum: ['chat', 'system', 'wish']) - Message category
+//
+// Collection: wishes
+// Document ID: {wishId}
+// Fields:
+//   - id: string (optional, immutable, 1..128 chars) - Wish identifier
+//   - uid: string (required, immutable, 1..128 chars, must equal request.auth.uid) - Author UID
+//   - monkName: string (required, immutable, 1..32 chars) - Author Dharma name
+//   - robeColor: string (required, immutable, enum: ['#d97706', '#991b1b', '#78350f', '#4b5563', '#1e3a8a']) - Author robe color
+//   - wishText: string (required, immutable, 1..500 chars) - Prayer/wish content hung on the Bodhi Tree or offered at the Incense Altar
+//   - createdAt: number | timestamp (required, immutable) - Wish creation timestamp
+//
+// ===============================================================
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+
+    // Check if the user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Check if user owns the resource (for user-owned documents keyed by userId)
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    // Check if user is owner based on existing document's uid field
+    function isDocOwner() {
+      return isAuthenticated() && request.auth.uid == resource.data.uid;
+    }
+
+    // Verify UID hasn't been tampered with on create
+    function uidUnchanged() {
+      return ('uid' in request.resource.data) &&
+        request.resource.data.uid is string &&
+        request.resource.data.uid == request.auth.uid;
+    }
+
+    // Ensure uid field is not modified on update
+    function uidNotModified() {
+      return ('uid' in request.resource.data) &&
+        request.resource.data.uid == resource.data.uid;
+    }
+
+    // Validate required fields exist on the incoming document
+    function hasRequiredFields(fields) {
+      return request.resource.data.keys().hasAll(fields);
+    }
+
+    // Validate that the document contains only the allowed fields (prevents schema pollution)
+    function hasOnlyAllowedFields(fields) {
+      return request.resource.data.keys().hasOnly(fields);
+    }
+
+    // Validate that immutable fields have not been modified during an update
+    function areImmutableFieldsUnchanged(fields) {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(fields);
+    }
+
+    // Validate string type and character length bounds
+    function validStringLength(field, minLen, maxLen) {
+      return request.resource.data[field] is string &&
+        request.resource.data[field].size() >= minLen &&
+        request.resource.data[field].size() <= maxLen;
+    }
+
+    // Validate optional string field (if present and non-null, must be string within length bounds)
+    function isValidOptionalString(field, minLen, maxLen) {
+      return !(field in request.resource.data) ||
+        request.resource.data[field] == null ||
+        (request.resource.data[field] is string &&
+         request.resource.data[field].size() >= minLen &&
+         request.resource.data[field].size() <= maxLen);
+    }
+
+    // Validate allowed monk robe hex colors
+    function isValidRobeColor(color) {
+      return color is string &&
+        color in ['#d97706', '#991b1b', '#78350f', '#4b5563', '#1e3a8a'];
+    }
+
+    // Validate allowed 3D character action states
+    function isValidActionState(state) {
+      return state is string &&
+        state in ['idle', 'walking', 'praying', 'wooden_fish', 'bell', 'fortune'];
+    }
+
+    // Validate allowed chat message types
+    function isValidMessageType(msgType) {
+      return msgType is string &&
+        msgType in ['chat', 'system', 'wish'];
+    }
+
+    // Validate Unix millisecond number or Firestore timestamp
+    function isValidTimestampOrMillis(val) {
+      return (val is number && val >= 0 && val <= 9999999999999) || val is timestamp;
+    }
+
+    // Validate optional Unix millisecond number or Firestore timestamp
+    function isValidOptionalTimestampOrMillis(data, field) {
+      return !(field in data) ||
+        data[field] == null ||
+        isValidTimestampOrMillis(data[field]);
+    }
+
+    // Validate 3D Vector3Tuple position map
+    function isValidPosition(pos) {
+      return pos is map &&
+        pos.keys().hasAll(['x', 'y', 'z']) &&
+        pos.keys().hasOnly(['x', 'y', 'z']) &&
+        pos.x is number && pos.x >= -1000 && pos.x <= 1000 &&
+        pos.y is number && pos.y >= -1000 && pos.y <= 1000 &&
+        pos.z is number && pos.z >= -1000 && pos.z <= 1000;
+    }
+
+    // Validate optional/nullable ChatBubbleState map on presence documents
+    function isValidChatBubble(data) {
+      return !('chatBubble' in data) ||
+        data.chatBubble == null ||
+        (data.chatBubble is map &&
+         data.chatBubble.keys().hasAll(['text', 'expiresAt']) &&
+         data.chatBubble.keys().hasOnly(['text', 'expiresAt']) &&
+         data.chatBubble.text is string &&
+         data.chatBubble.text.size() >= 0 &&
+         data.chatBubble.text.size() <= 300 &&
+         isValidTimestampOrMillis(data.chatBubble.expiresAt));
+    }
+
+    // ===============================================================
+    // Domain Validators (Used in BOTH create and update rules)
+    // ===============================================================
+
+    function isValidMonkProfile(data, userId) {
+      return hasRequiredFields(['uid', 'username', 'monkName', 'robeColor', 'meritPoints', 'createdAt']) &&
+        hasOnlyAllowedFields(['uid', 'username', 'monkName', 'robeColor', 'meritPoints', 'createdAt', 'updatedAt']) &&
+        uidUnchanged() &&
+        data.uid == userId &&
+        validStringLength('uid', 1, 128) &&
+        validStringLength('username', 1, 40) &&
+        validStringLength('monkName', 0, 32) &&
+        isValidRobeColor(data.robeColor) &&
+        data.meritPoints is number &&
+        data.meritPoints >= 0 &&
+        data.meritPoints <= 1000000000 &&
+        isValidTimestampOrMillis(data.createdAt) &&
+        isValidOptionalTimestampOrMillis(data, 'updatedAt');
+    }
+
+    function isValidMonkPresence(data, userId) {
+      return hasRequiredFields(['uid', 'monkName', 'robeColor', 'position', 'rotationY', 'actionState', 'meritPoints', 'lastUpdated']) &&
+        hasOnlyAllowedFields(['uid', 'monkName', 'robeColor', 'position', 'rotationY', 'actionState', 'chatBubble', 'meritPoints', 'lastUpdated']) &&
+        uidUnchanged() &&
+        data.uid == userId &&
+        validStringLength('uid', 1, 128) &&
+        validStringLength('monkName', 1, 32) &&
+        isValidRobeColor(data.robeColor) &&
+        isValidPosition(data.position) &&
+        data.rotationY is number &&
+        data.rotationY >= -1000 &&
+        data.rotationY <= 1000 &&
+        isValidActionState(data.actionState) &&
+        isValidChatBubble(data) &&
+        data.meritPoints is number &&
+        data.meritPoints >= 0 &&
+        data.meritPoints <= 1000000000 &&
+        isValidTimestampOrMillis(data.lastUpdated);
+    }
+
+    function isValidChatMessage(data) {
+      return hasRequiredFields(['uid', 'monkName', 'robeColor', 'text', 'createdAt', 'type']) &&
+        hasOnlyAllowedFields(['id', 'uid', 'monkName', 'robeColor', 'text', 'createdAt', 'type']) &&
+        uidUnchanged() &&
+        isValidOptionalString('id', 1, 128) &&
+        validStringLength('uid', 1, 128) &&
+        validStringLength('monkName', 1, 32) &&
+        isValidRobeColor(data.robeColor) &&
+        validStringLength('text', 1, 300) &&
+        isValidTimestampOrMillis(data.createdAt) &&
+        isValidMessageType(data.type);
+    }
+
+    function isValidIncenseWish(data) {
+      return hasRequiredFields(['uid', 'monkName', 'robeColor', 'wishText', 'createdAt']) &&
+        hasOnlyAllowedFields(['id', 'uid', 'monkName', 'robeColor', 'wishText', 'createdAt']) &&
+        uidUnchanged() &&
+        isValidOptionalString('id', 1, 128) &&
+        validStringLength('uid', 1, 128) &&
+        validStringLength('monkName', 1, 32) &&
+        isValidRobeColor(data.robeColor) &&
+        validStringLength('wishText', 1, 500) &&
+        isValidTimestampOrMillis(data.createdAt);
+    }
+
+    // ===============================================================
+    // Collection Rules
+    // ===============================================================
+
+    // 1. Monk Profiles (users/{userId})
+    // Contains only public in-game monk identity (no email or PII).
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) &&
+        isValidMonkProfile(request.resource.data, userId);
+      allow update: if isOwner(userId) &&
+        isDocOwner() &&
+        uidNotModified() &&
+        areImmutableFieldsUnchanged(['uid', 'username', 'createdAt']) &&
+        isValidMonkProfile(request.resource.data, userId);
+      allow delete: if false;
+    }
+
+    // 2. Realtime Courtyard Presence (presence/{userId})
+    match /presence/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) &&
+        isValidMonkPresence(request.resource.data, userId);
+      allow update: if isOwner(userId) &&
+        isDocOwner() &&
+        uidNotModified() &&
+        areImmutableFieldsUnchanged(['uid']) &&
+        isValidMonkPresence(request.resource.data, userId);
+      allow delete: if isOwner(userId);
+    }
+
+    // 3. Temple Courtyard Chat Messages (messages/{messageId})
+    match /messages/{messageId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        isValidChatMessage(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // 4. Incense & Bodhi Tree Wishes (wishes/{wishId})
+    match /wishes/{wishId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() &&
+        isValidIncenseWish(request.resource.data);
+      allow update, delete: if false;
+    }
+
+    // Default deny all other paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

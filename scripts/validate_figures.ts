@@ -1,0 +1,11 @@
+import path from 'node:path';
+import fs from 'node:fs/promises';
+import { validateFigureDirectory } from './figures/validate.ts';
+const directory = path.resolve(process.argv[2] ?? 'public/models/figures');
+const report = await validateFigureDirectory(directory);
+const output = path.resolve('outputs/character-model-fix/asset-validation.json');
+await fs.mkdir(path.dirname(output), { recursive: true });
+await fs.writeFile(output, JSON.stringify(report, null, 2));
+for (const asset of report.assets) if (asset.errors.length) console.error(asset.id, asset.lod, asset.errors.join('; '));
+console.log(`${report.assets.length} GLBs checked: ${report.passed ? 'PASS' : 'FAIL'}. Report: ${output}`);
+if (!report.passed) process.exitCode = 1;
