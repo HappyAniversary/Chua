@@ -19,7 +19,7 @@ import { drawRandomFortuneSlip, FORTUNE_SLIPS } from '../../data/fortunes';
 export interface FortuneDrawModalProps {
   profile: MonkProfile;
   onFortuneDrawn: (slip: FortuneSlip) => void;
-  onShareFortune?: (slip: FortuneSlip) => void;
+  onShareFortune?: (slip: FortuneSlip) => Promise<void> | void;
   onClose: () => void;
 }
 
@@ -49,6 +49,8 @@ export const FortuneDrawModal: React.FC<FortuneDrawModalProps> = ({
   const [drawnSlip, setDrawnSlip] = useState<FortuneSlip | null>(null);
   const [stickEmerging, setStickEmerging] = useState<boolean>(false);
   const [sharedSuccess, setSharedSuccess] = useState<boolean>(false);
+  const [isSharing, setIsSharing] = useState(false);
+  const [shareError, setShareError] = useState<string | null>(null);
 
   const shakeTimerRef = useRef<number | null>(null);
   const emergeTimerRef = useRef<number | null>(null);
@@ -66,6 +68,7 @@ export const FortuneDrawModal: React.FC<FortuneDrawModalProps> = ({
     if (stage === 'shaking') return;
 
     setSharedSuccess(false);
+    setShareError(null);
     setStickEmerging(false);
     setStage('shaking');
 
@@ -91,16 +94,26 @@ export const FortuneDrawModal: React.FC<FortuneDrawModalProps> = ({
   };
 
   const handleDrawAgain = () => {
+    if (isSharing) return;
     setDrawnSlip(null);
     setStickEmerging(false);
     setSharedSuccess(false);
+    setShareError(null);
     setStage('ready');
   };
 
-  const handleShare = () => {
-    if (!drawnSlip || !onShareFortune) return;
-    onShareFortune(drawnSlip);
-    setSharedSuccess(true);
+  const handleShare = async () => {
+    if (!drawnSlip || !onShareFortune || isSharing) return;
+    setIsSharing(true);
+    setShareError(null);
+    try {
+      await onShareFortune(drawnSlip);
+      setSharedSuccess(true);
+    } catch (error) {
+      setShareError(error instanceof Error ? error.message : 'Chưa chia sẻ được quẻ. Hãy thử lại.');
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const totalSlipsCount = FORTUNE_SLIPS.length;
@@ -343,6 +356,7 @@ export const FortuneDrawModal: React.FC<FortuneDrawModalProps> = ({
               </div>
 
               {/* Thông báo đã chia sẻ lên Kênh Chat Chùa */}
+              {shareError && <p role="alert" className="rounded-xl border border-red-500/30 bg-red-950/70 p-3 text-xs text-red-200">{shareError}</p>}
               {sharedSuccess && (
                 <div className="flex items-center justify-center gap-2 p-3 rounded-2xl bg-emerald-950/80 border border-emerald-500/40 text-emerald-200 text-xs sm:text-sm animate-fadeIn">
                   <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
@@ -356,12 +370,12 @@ export const FortuneDrawModal: React.FC<FortuneDrawModalProps> = ({
                   <button
                     type="button"
                     onClick={handleShare}
-                    disabled={sharedSuccess}
+                    disabled={sharedSuccess || isSharing}
                     className="flex-1 py-3.5 px-4 rounded-2xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 bg-gradient-to-r from-amber-500 via-yellow-400 to-amber-500 hover:from-amber-400 hover:to-yellow-300 disabled:opacity-60 text-stone-950 shadow-[0_4px_20px_rgba(245,158,11,0.35)] transition-all"
                   >
                     <Share2 className="w-4 h-4" />
                     <span>
-                      {sharedSuccess
+                      {isSharing ? 'Đang chia sẻ…' : sharedSuccess
                         ? 'Đã Chia Sẻ Lên Kênh Chat Chùa'
                         : 'Chia sẻ quẻ lành lên Kênh Chat Chùa'}
                     </span>
@@ -371,6 +385,7 @@ export const FortuneDrawModal: React.FC<FortuneDrawModalProps> = ({
                 <button
                   type="button"
                   onClick={handleDrawAgain}
+                  disabled={isSharing}
                   className="py-3.5 px-5 rounded-2xl font-semibold text-xs sm:text-sm flex items-center justify-center gap-2 bg-stone-800 hover:bg-stone-700 text-amber-200 border border-amber-500/35 transition-colors"
                 >
                   <RotateCcw className="w-4 h-4" />

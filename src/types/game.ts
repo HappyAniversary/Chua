@@ -153,6 +153,8 @@ export interface ChatBubbleState {
  * dùng để đồng bộ vị trí và hành động giữa nhiều người chơi.
  */
 export interface MonkPresence {
+  /** Distinguishes simulated companions from real player sessions. */
+  isNpc?: boolean;
   /** Định danh duy nhất của người chơi */
   uid: string;
   /** Pháp danh hiển thị trên đầu nhân vật */

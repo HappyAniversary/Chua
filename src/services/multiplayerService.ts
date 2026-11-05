@@ -20,7 +20,15 @@ import type {
   Vector3Tuple,
 } from '../types/game';
 
+export interface MultiplayerConnectionStatus {
+  mode: 'firebase' | 'local';
+  state: 'local' | 'connecting' | 'connected' | 'error';
+  message?: string;
+  code?: string;
+}
+
 export interface MultiplayerCallbacks {
+  onConnectionUpdate?: (status: MultiplayerConnectionStatus) => void;
   onMonksUpdate: (remoteMonks: MonkPresence[]) => void;
   onMessagesUpdate: (messages: ChatMessage[]) => void;
   onWishesUpdate: (wishes: IncenseWish[]) => void;
@@ -43,20 +51,80 @@ type BroadcastPayload =
   | { type: 'chat_message'; message: ChatMessage }
   | { type: 'incense_wish'; wish: IncenseWish };
 
+type CloudChannel = 'presence' | 'messages' | 'wishes';
+interface CloudFailure { code: string; message: string }
+interface CloudConnection {
+  acknowledgedWrite: boolean;
+  ready: Set<CloudChannel>;
+  failures: Map<string, CloudFailure>;
+  disposed: boolean;
+  lastStatus?: string;
+}
+interface PresencePublishState {
+  latest: MonkPresence;
+  inFlight: boolean;
+  lastSuccessfulAt: number;
+  action: MonkActionState | null;
+  bubbleText: string | null;
+  timer?: number;
+  failures: number;
+}
+
 interface ActiveSession {
   id: string;
   uid: string;
   callbacks: MultiplayerCallbacks;
+  cloud?: CloudConnection;
 }
 
 let aiFellowMonksEnabled = true;
 const activeSessions = new Map<string, ActiveSession>();
 const firestorePresenceMap = new Map<string, MonkPresence>();
 let sharedBroadcastChannel: BroadcastChannel | null = null;
-let lastFirestorePublishAt = 0;
-let lastPublishedAction: MonkActionState | null = null;
-let lastPublishedBubbleText: string | null = null;
+const presencePublishes = new Map<string, PresencePublishState>();
 let lastKnownLocalPresence: MonkPresence | null = null;
+
+
+function connectionFailure(error: unknown, message: string): CloudFailure {
+  const code = error && typeof error === 'object' && 'code' in error ? String(error.code) : 'unknown';
+  if (code.includes('permission-denied')) return { code, message: 'Chưa có quyền đồng bộ trực tuyến. Vui lòng kiểm tra cấu hình kết nối.' };
+  if (code.includes('unauthenticated')) return { code, message: 'Phiên đăng nhập trực tuyến đã hết hạn. Vui lòng đăng nhập lại.' };
+  if (code.includes('unavailable') || code.includes('offline')) return { code, message: 'Mất kết nối trực tuyến. Đang chờ kết nối lại.' };
+  return { code, message };
+}
+
+function notifyConnection(session: ActiveSession): void {
+  const cloud = session.cloud;
+  if (!cloud) { session.callbacks.onConnectionUpdate?.({ mode: 'local', state: 'local' }); return; }
+  if (cloud.disposed) return;
+  const error = cloud.failures.values().next().value as CloudFailure | undefined;
+  const status: MultiplayerConnectionStatus = error
+    ? { mode: 'firebase', state: 'error', ...error }
+    : cloud.acknowledgedWrite && cloud.ready.size === 3
+      ? { mode: 'firebase', state: 'connected' }
+      : { mode: 'firebase', state: 'connecting' };
+  const signature = JSON.stringify(status);
+  if (signature !== cloud.lastStatus) {
+    cloud.lastStatus = signature;
+    session.callbacks.onConnectionUpdate?.(status);
+  }
+}
+
+function updateCloudForUid(uid: string, mutate: (cloud: CloudConnection) => void): void {
+  for (const session of activeSessions.values()) if (session.uid === uid && session.cloud && !session.cloud.disposed) {
+    mutate(session.cloud); notifyConnection(session);
+  }
+}
+
+function reportCloudFailure(uid: string, scope: string, error: unknown, message: string): void {
+  updateCloudForUid(uid, (cloud) => { cloud.failures.set(scope, connectionFailure(error, message)); });
+}
+
+function retryDelay(attempt: number): number { return Math.min(30_000, 1_000 * 2 ** Math.min(attempt, 5)); }
+
+function hasActiveUid(uid: string): boolean {
+  return [...activeSessions.values()].some((session) => session.uid === uid);
+}
 
 function getSharedBroadcastChannel(): BroadcastChannel | null {
   if (typeof window === 'undefined' || typeof BroadcastChannel === 'undefined') {
@@ -493,6 +561,7 @@ function buildAiFellowMonks(now: number): MonkPresence[] {
   return [
     {
       uid: 'npc_thich_minh_tam',
+      isNpc: true,
       monkName: 'Thích Minh Tâm',
       robeColor: '#d97706',
       position: minhTamState.position,
@@ -504,6 +573,7 @@ function buildAiFellowMonks(now: number): MonkPresence[] {
     },
     {
       uid: 'npc_tieu_su_an_nhien',
+      isNpc: true,
       monkName: 'Tiểu Sư An Nhiên',
       robeColor: '#78350f',
       position: { x: -3.8, y: 0, z: -2.2 },
@@ -515,6 +585,7 @@ function buildAiFellowMonks(now: number): MonkPresence[] {
     },
     {
       uid: 'npc_dao_huu_hue_dang',
+      isNpc: true,
       monkName: 'Đạo Hữu Huệ Đăng',
       robeColor: '#991b1b',
       position: hueDangState.position,
@@ -588,43 +659,52 @@ function notifyAllWishesUpdate(wishes: IncenseWish[]): void {
 }
 
 function syncPresenceToFirestore(presence: MonkPresence, forceImmediate = false): void {
-  if (!isFirebaseConfigured || !firestoreDb) return;
-
-  const now = Date.now();
-  const currentBubbleText = presence.chatBubble?.text ?? null;
-  const stateChanged =
-    presence.actionState !== lastPublishedAction ||
-    currentBubbleText !== lastPublishedBubbleText;
-
-  if (
-    !forceImmediate &&
-    !stateChanged &&
-    now - lastFirestorePublishAt < FIRESTORE_PRESENCE_THROTTLE_MS
-  ) {
-    return;
+  if (!isFirebaseConfigured || !firestoreDb || !hasActiveUid(presence.uid)) return;
+  let state = presencePublishes.get(presence.uid);
+  if (!state) {
+    state = { latest: presence, inFlight: false, lastSuccessfulAt: 0, action: null, bubbleText: null, failures: 0 };
+    presencePublishes.set(presence.uid, state);
   }
-
-  lastFirestorePublishAt = now;
-  lastPublishedAction = presence.actionState;
-  lastPublishedBubbleText = currentBubbleText;
-
-  const presenceDocRef = doc(firestoreDb, 'presence', presence.uid);
-  void setDoc(presenceDocRef, {
-    uid: presence.uid,
-    monkName: presence.monkName,
-    robeColor: presence.robeColor,
-    position: {
-      x: Number(presence.position.x.toFixed(3)),
-      y: Number(presence.position.y.toFixed(3)),
-      z: Number(presence.position.z.toFixed(3)),
-    },
-    rotationY: Number(presence.rotationY.toFixed(3)),
-    actionState: presence.actionState,
-    chatBubble: presence.chatBubble ?? null,
-    meritPoints: presence.meritPoints,
-    lastUpdated: presence.lastUpdated,
-  }).catch(() => {
-    // Fallback êm sang chế độ Local nếu Firestore từ chối quyền hoặc mất mạng
+  state.latest = presence;
+  if (state.inFlight) return;
+  if (state.timer !== undefined) {
+    if (!forceImmediate) return;
+    window.clearTimeout(state.timer); state.timer = undefined;
+  }
+  const pending = state;
+  const schedule = (delay: number) => {
+    if (!hasActiveUid(presence.uid) || presencePublishes.get(presence.uid) !== pending) return;
+    pending.timer = window.setTimeout(() => {
+      pending.timer = undefined;
+      syncPresenceToFirestore(pending.latest);
+    }, delay);
+  };
+  const bubbleText = presence.chatBubble?.text ?? null;
+  const changed = presence.actionState !== state.action || bubbleText !== state.bubbleText;
+  const remaining = FIRESTORE_PRESENCE_THROTTLE_MS - (Date.now() - state.lastSuccessfulAt);
+  if (!forceImmediate && !changed && remaining > 0) { schedule(remaining); return; }
+  pending.inFlight = true;
+  const ref = doc(firestoreDb, 'presence', presence.uid);
+  void Promise.resolve().then(() => setDoc(ref, {
+    uid: presence.uid, monkName: presence.monkName, robeColor: presence.robeColor,
+    position: { x: Number(presence.position.x.toFixed(3)), y: Number(presence.position.y.toFixed(3)), z: Number(presence.position.z.toFixed(3)) },
+    rotationY: Number(presence.rotationY.toFixed(3)), actionState: presence.actionState,
+    chatBubble: presence.chatBubble ?? null, meritPoints: presence.meritPoints, lastUpdated: presence.lastUpdated,
+  })).then(() => {
+    if (presencePublishes.get(presence.uid) !== pending) return;
+    // Only an acknowledged write consumes the publish throttle.
+    pending.lastSuccessfulAt = Date.now(); pending.action = presence.actionState;
+    pending.bubbleText = bubbleText; pending.failures = 0;
+    updateCloudForUid(presence.uid, (cloud) => { cloud.acknowledgedWrite = true; cloud.failures.delete('write:presence'); });
+  }).catch((error) => {
+    if (presencePublishes.get(presence.uid) !== pending) return;
+    updateCloudForUid(presence.uid, (cloud) => { cloud.acknowledgedWrite = false; });
+    reportCloudFailure(presence.uid, 'write:presence', error, 'Không thể đồng bộ vị trí trực tuyến. Đang thử lại.');
+    schedule(retryDelay(pending.failures++));
+  }).finally(() => {
+    if (presencePublishes.get(presence.uid) !== pending) return;
+    pending.inFlight = false;
+    if (pending.timer === undefined && pending.latest !== presence) syncPresenceToFirestore(pending.latest);
   });
 }
 
@@ -649,11 +729,13 @@ export function startMultiplayerSession(
   callbacks: MultiplayerCallbacks
 ): () => void {
   const sessionId = createUniqueId('session');
-  activeSessions.set(sessionId, {
-    id: sessionId,
-    uid: profile.uid,
-    callbacks,
-  });
+  const session: ActiveSession = {
+    id: sessionId, uid: profile.uid, callbacks,
+    ...(isFirebaseConfigured ? { cloud: { acknowledgedWrite: false, ready: new Set<CloudChannel>(), failures: new Map(), disposed: false } } : {}),
+  };
+  activeSessions.set(sessionId, session);
+  notifyConnection(session);
+  if (isFirebaseConfigured && !firestoreDb) reportCloudFailure(profile.uid, 'configuration', { code: 'firebase/missing-firestore' }, 'Chưa thiết lập được kết nối trực tuyến.');
 
   // Khởi tạo trạng thái hiện diện ban đầu của người chơi
   const initialPresence: MonkPresence = {
@@ -768,109 +850,95 @@ export function startMultiplayerSession(
     notifyAllMonksUpdate();
   }, HEARTBEAT_INTERVAL_MS);
 
-  // Đăng ký đồng bộ thời gian thực với Cloud Firestore nếu đã cấu hình
-  const firestoreUnsubscribes: Array<() => void> = [];
-  if (isFirebaseConfigured && firestoreDb) {
+  // Server acknowledgements, rather than configuration or cached data, prove connectivity.
+  const cloudUnsubscribes = new Map<CloudChannel, () => void>();
+  const listenerTimers = new Map<CloudChannel, number>();
+  const listenerAttempts = new Map<CloudChannel, number>();
+  const generations = new Map<CloudChannel, number>();
+  const cloud = session.cloud;
+  const listen = (channel: CloudChannel): void => {
+    if (!cloud || cloud.disposed || !firestoreDb) return;
+    const oldTimer = listenerTimers.get(channel);
+    if (oldTimer !== undefined) window.clearTimeout(oldTimer);
+    listenerTimers.delete(channel);
+    cloudUnsubscribes.get(channel)?.();
+    const generation = (generations.get(channel) ?? 0) + 1;
+    generations.set(channel, generation);
+    cloud.ready.delete(channel); notifyConnection(session);
+    const current = () => !cloud.disposed && generations.get(channel) === generation;
+    const failed = (error: unknown) => {
+      if (!current()) return;
+      cloud.ready.delete(channel);
+      cloud.failures.set(`listen:${channel}`, connectionFailure(error, 'Không thể nhận dữ liệu trực tuyến. Đang thử kết nối lại.'));
+      notifyConnection(session);
+      const attempt = listenerAttempts.get(channel) ?? 0;
+      listenerAttempts.set(channel, attempt + 1);
+      listenerTimers.set(channel, window.setTimeout(() => { listenerTimers.delete(channel); listen(channel); }, retryDelay(attempt)));
+    };
     try {
-      const presenceUnsub = onSnapshot(
-        collection(firestoreDb, 'presence'),
-        (snapshot) => {
+      const ref = channel === 'presence' ? collection(firestoreDb, channel)
+        : query(collection(firestoreDb, channel), orderBy('createdAt', 'desc'), limit(channel === 'messages' ? MAX_STORED_MESSAGES : MAX_STORED_WISHES));
+      const unsubscribe = onSnapshot(ref, { includeMetadataChanges: true }, (snapshot) => {
+        if (!current()) return;
+        if (snapshot.metadata.fromCache === false && !snapshot.metadata.hasPendingWrites) {
+          cloud.ready.add(channel); cloud.failures.delete(`listen:${channel}`); listenerAttempts.set(channel, 0);
+        } else if (snapshot.metadata.fromCache !== false) cloud.ready.delete(channel);
+        notifyConnection(session);
+        if (channel === 'presence') {
           const now = Date.now();
           snapshot.docChanges().forEach((change) => {
-            const data = change.doc.data() as MonkPresence;
-            const docUid = data?.uid || change.doc.id;
-            if (change.type === 'removed') {
-              firestorePresenceMap.delete(docUid);
-            } else if (
-              data &&
-              typeof data.lastUpdated === 'number' &&
-              now - data.lastUpdated <= STALE_MONK_TIMEOUT_MS
-            ) {
-              firestorePresenceMap.set(docUid, {
-                ...data,
-                uid: docUid,
-              });
-            }
+            const data = change.doc.data() as MonkPresence, uid = data?.uid || change.doc.id;
+            if (change.type === 'removed') firestorePresenceMap.delete(uid);
+            else if (data && typeof data.lastUpdated === 'number' && now - data.lastUpdated <= STALE_MONK_TIMEOUT_MS) firestorePresenceMap.set(uid, { ...data, uid });
           });
           notifyAllMonksUpdate();
-        },
-        () => {
-          // Tự động dùng chế độ Local nếu Firestore không khả dụng
+        } else if (channel === 'messages') {
+          const messages: ChatMessage[] = [];
+          snapshot.forEach((record) => { if (record.metadata.hasPendingWrites) return; const data = record.data() as ChatMessage; if (data && typeof data.text === 'string') messages.push({ ...data, id: data.id || record.id }); });
+          if (messages.length) notifyAllMessagesUpdate(writeStoredMessages([...readStoredMessages(), ...messages]));
+        } else {
+          const wishes: IncenseWish[] = [];
+          snapshot.forEach((record) => { if (record.metadata.hasPendingWrites) return; const data = record.data() as IncenseWish; if (data && typeof data.wishText === 'string') wishes.push({ ...data, id: data.id || record.id }); });
+          if (wishes.length) notifyAllWishesUpdate(writeStoredWishes([...wishes, ...readStoredWishes()]));
         }
-      );
-      firestoreUnsubscribes.push(presenceUnsub);
-
-      const messagesQuery = query(
-        collection(firestoreDb, 'messages'),
-        orderBy('createdAt', 'desc'),
-        limit(MAX_STORED_MESSAGES)
-      );
-      const messagesUnsub = onSnapshot(
-        messagesQuery,
-        (snapshot) => {
-          const remoteMessages: ChatMessage[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as ChatMessage;
-            if (data && typeof data.text === 'string') {
-              remoteMessages.push({
-                ...data,
-                id: data.id || docSnap.id,
-              });
-            }
-          });
-          if (remoteMessages.length > 0) {
-            const merged = writeStoredMessages([
-              ...readStoredMessages(),
-              ...remoteMessages,
-            ]);
-            notifyAllMessagesUpdate(merged);
-          }
-        },
-        () => {
-          // Bỏ qua lỗi quyền truy cập Firestore
-        }
-      );
-      firestoreUnsubscribes.push(messagesUnsub);
-
-      const wishesQuery = query(
-        collection(firestoreDb, 'wishes'),
-        orderBy('createdAt', 'desc'),
-        limit(MAX_STORED_WISHES)
-      );
-      const wishesUnsub = onSnapshot(
-        wishesQuery,
-        (snapshot) => {
-          const remoteWishes: IncenseWish[] = [];
-          snapshot.forEach((docSnap) => {
-            const data = docSnap.data() as IncenseWish;
-            if (data && typeof data.wishText === 'string') {
-              remoteWishes.push({
-                ...data,
-                id: data.id || docSnap.id,
-              });
-            }
-          });
-          if (remoteWishes.length > 0) {
-            const merged = writeStoredWishes([
-              ...remoteWishes,
-              ...readStoredWishes(),
-            ]);
-            notifyAllWishesUpdate(merged);
-          }
-        },
-        () => {
-          // Bỏ qua lỗi quyền truy cập Firestore
-        }
-      );
-      firestoreUnsubscribes.push(wishesUnsub);
-    } catch {
-      // An toàn tuyệt đối khi Firestore gặp sự cố khởi tạo
-    }
+      }, failed);
+      cloudUnsubscribes.set(channel, unsubscribe);
+    } catch (error) { failed(error); }
+  };
+  const channels: CloudChannel[] = ['presence', 'messages', 'wishes'];
+  if (cloud && firestoreDb) channels.forEach(listen);
+  const handleOffline = () => {
+    if (!cloud || cloud.disposed) return;
+    cloud.ready.clear();
+    cloud.failures.set('network', connectionFailure({ code: 'network/offline' }, 'Mất kết nối trực tuyến.'));
+    notifyConnection(session);
+  };
+  const handleOnline = () => {
+    if (!cloud || cloud.disposed) return;
+    cloud.failures.delete('network');
+    channels.forEach(listen);
+    if (lastKnownLocalPresence?.uid === profile.uid) syncPresenceToFirestore({ ...lastKnownLocalPresence, lastUpdated: Date.now() }, true);
+    notifyConnection(session);
+  };
+  if (cloud) {
+    window.addEventListener('offline', handleOffline);
+    window.addEventListener('online', handleOnline);
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) handleOffline();
   }
 
   return () => {
     window.clearInterval(tickInterval);
+    if (cloud) cloud.disposed = true;
     activeSessions.delete(sessionId);
+    if (!hasActiveUid(profile.uid)) {
+      const pending = presencePublishes.get(profile.uid);
+      if (pending?.timer !== undefined) window.clearTimeout(pending.timer);
+      presencePublishes.delete(profile.uid);
+    }
+    listenerTimers.forEach((timer) => window.clearTimeout(timer));
+    cloudUnsubscribes.forEach((unsubscribe) => unsubscribe());
+    window.removeEventListener('offline', handleOffline);
+    window.removeEventListener('online', handleOnline);
 
     if (channel) {
       channel.removeEventListener('message', handleBroadcastMessage);
@@ -878,14 +946,6 @@ export function startMultiplayerSession(
     if (typeof window !== 'undefined') {
       window.removeEventListener('storage', handleStorageEvent);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-    }
-
-    for (const unsub of firestoreUnsubscribes) {
-      try {
-        unsub();
-      } catch {
-        // Ignore unsubscribe error
-      }
     }
 
     removePresenceEverywhere(profile.uid);
@@ -943,20 +1003,20 @@ export async function sendTempleChatMessage(
     type,
   };
 
-  const updatedMessages = writeStoredMessages([
-    ...readStoredMessages(),
-    newMessage,
-  ]);
-  postBroadcast({ type: 'chat_message', message: newMessage });
-  notifyAllMessagesUpdate(updatedMessages);
-
-  if (isFirebaseConfigured && firestoreDb) {
+  if (isFirebaseConfigured) {
     try {
+      if (!firestoreDb) throw Object.assign(new Error('Missing Firestore configuration'), { code: 'firebase/missing-firestore' });
       await addDoc(collection(firestoreDb, 'messages'), newMessage);
-    } catch {
-      // Giữ đồng bộ Local nếu ghi Firestore thất bại
+      updateCloudForUid(profile.uid, (cloud) => { cloud.failures.delete('write:messages'); });
+    } catch (error) {
+      const failure = connectionFailure(error, 'Không thể gửi tin nhắn trực tuyến. Vui lòng thử lại.');
+      reportCloudFailure(profile.uid, 'write:messages', error, failure.message);
+      throw Object.assign(new Error(failure.message), { code: failure.code });
     }
   }
+  const updatedMessages = writeStoredMessages([...readStoredMessages(), newMessage]);
+  postBroadcast({ type: 'chat_message', message: newMessage });
+  notifyAllMessagesUpdate(updatedMessages);
 
   return newMessage;
 }
@@ -975,17 +1035,20 @@ export async function submitTempleIncenseWish(
     createdAt: Date.now(),
   };
 
+  if (isFirebaseConfigured) {
+    try {
+      if (!firestoreDb) throw Object.assign(new Error('Missing Firestore configuration'), { code: 'firebase/missing-firestore' });
+      await addDoc(collection(firestoreDb, 'wishes'), newWish);
+      updateCloudForUid(profile.uid, (cloud) => { cloud.failures.delete('write:wishes'); });
+    } catch (error) {
+      const failure = connectionFailure(error, 'Không thể gửi lời nguyện trực tuyến. Vui lòng thử lại.');
+      reportCloudFailure(profile.uid, 'write:wishes', error, failure.message);
+      throw Object.assign(new Error(failure.message), { code: failure.code });
+    }
+  }
   const updatedWishes = writeStoredWishes([newWish, ...readStoredWishes()]);
   postBroadcast({ type: 'incense_wish', wish: newWish });
   notifyAllWishesUpdate(updatedWishes);
-
-  if (isFirebaseConfigured && firestoreDb) {
-    try {
-      await addDoc(collection(firestoreDb, 'wishes'), newWish);
-    } catch {
-      // Giữ đồng bộ Local nếu ghi Firestore thất bại
-    }
-  }
 
   return newWish;
 }

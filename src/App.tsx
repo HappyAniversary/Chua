@@ -20,6 +20,7 @@ import {
 import { useInputControls } from './hooks/useInputControls';
 import {
   addMonkMeritPoints,
+  getAuthBackendMode,
   getCurrentMonkSession,
   logoutCurrentMonk,
 } from './services/authService';
@@ -31,6 +32,9 @@ import {
   startMultiplayerSession,
   submitTempleIncenseWish,
 } from './services/multiplayerService';
+import type { MultiplayerConnectionStatus } from './services/multiplayerService';
+import { countHumanPlayers } from './utils/multiplayerPresentation';
+import { completeSessionOperation } from './utils/sessionOperation';
 import type {
   CameraControlState,
   ChatBubbleState,
@@ -105,6 +109,11 @@ export function App() {
   const [remoteMonks, setRemoteMonks] = useState<MonkPresence[]>([]);
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [recentWishes, setRecentWishes] = useState<IncenseWish[]>([]);
+  const [connectionStatus, setConnectionStatus] = useState<MultiplayerConnectionStatus>(() => ({
+    mode: getAuthBackendMode(),
+    state: getAuthBackendMode() === 'firebase' ? 'connecting' : 'local',
+  }));
+  const [connectionAttempt, setConnectionAttempt] = useState(0);
   const [aiMonksEnabled, setAiMonksEnabled] = useState<boolean>(() =>
     getAiFellowMonksEnabled()
   );
@@ -176,23 +185,27 @@ export function App() {
       return;
     }
 
+    let active = true;
     const stopSession = startMultiplayerSession(
       currentProfile,
       playerTransformRef.current.position,
       {
-        onMonksUpdate: (monks) => setRemoteMonks(monks),
-        onMessagesUpdate: (msgs) => setChatMessages(msgs),
-        onWishesUpdate: (wishes) => setRecentWishes(wishes),
+        onMonksUpdate: (monks) => { if (active) setRemoteMonks(monks); },
+        onMessagesUpdate: (msgs) => { if (active) setChatMessages(msgs); },
+        onWishesUpdate: (wishes) => { if (active) setRecentWishes(wishes); },
+        onConnectionUpdate: (status) => { if (active) setConnectionStatus(status); },
       }
     );
 
     return () => {
+      active = false;
       stopSession();
     };
   }, [
     currentProfile?.uid,
     currentProfile?.monkName,
     currentProfile?.robeColor,
+    connectionAttempt,
   ]);
 
   // Khi người chơi di chuyển bằng Joystick / WASD, tự động hủy động tác cố định và đóng overlay Gõ Mõ / Chuông
@@ -243,15 +256,21 @@ export function App() {
     const active = currentProfileRef.current;
     if (!active || delta <= 0) return;
     try {
-      const updated = await addMonkMeritPoints(active.uid, delta);
-      setCurrentProfile(updated);
-      currentProfileRef.current = updated;
-      publishLocalMonkState(
-        updated,
-        playerTransformRef.current.position,
-        playerTransformRef.current.rotationY,
-        playerTransformRef.current.actionState,
-        chatBubbleRef.current
+      await completeSessionOperation(
+        active.uid,
+        () => currentProfileRef.current?.uid,
+        () => addMonkMeritPoints(active.uid, delta),
+        (updated) => {
+          setCurrentProfile(updated);
+          currentProfileRef.current = updated;
+          publishLocalMonkState(
+            updated,
+            playerTransformRef.current.position,
+            playerTransformRef.current.rotationY,
+            playerTransformRef.current.actionState,
+            chatBubbleRef.current
+          );
+        }
       );
     } catch {
       // Ignore transient storage error
@@ -451,9 +470,14 @@ export function App() {
   // Gửi tin nhắn Chat cộng đồng (hiện cả trong khung chat lẫn bong bóng 3D trên đầu)
   const handleSendChatMessage = useCallback(
     async (text: string) => {
-      if (!currentProfileRef.current || !text.trim()) return;
-      showMonkBubble(text.trim(), 6000);
-      await sendTempleChatMessage(currentProfileRef.current, text.trim(), 'chat');
+      const origin = currentProfileRef.current;
+      if (!origin || !text.trim()) return;
+      await completeSessionOperation(
+        origin.uid,
+        () => currentProfileRef.current?.uid,
+        () => sendTempleChatMessage(origin, text.trim(), 'chat'),
+        () => showMonkBubble(text.trim(), 6000)
+      );
     },
     [showMonkBubble]
   );
@@ -461,16 +485,22 @@ export function App() {
   // Dâng hương / Treo thẻ nguyện ước tại Chánh Điện hoặc Cội Bồ Đề
   const handleSubmitIncenseWish = useCallback(
     async (wishText: string) => {
-      if (!currentProfileRef.current || !wishText.trim()) return;
+      const origin = currentProfileRef.current;
+      if (!origin || !wishText.trim()) return;
       const mode =
         activeActivityModal === 'bodhi_tree' ? 'bodhi_tree' : 'incense_altar';
       const reward = INTERACTION_ZONES[mode].meritReward;
 
       setForcedActionState('praying');
-      showMonkBubble(`🙏 Nguyện cầu: "${wishText.trim()}" (+${reward} Công Đức)`, 6500);
-
-      await submitTempleIncenseWish(currentProfileRef.current, wishText.trim());
-      await earnMeritPoints(reward);
+      await completeSessionOperation(
+        origin.uid,
+        () => currentProfileRef.current?.uid,
+        async () => {
+          await submitTempleIncenseWish(origin, wishText.trim());
+          if (currentProfileRef.current?.uid === origin.uid) await earnMeritPoints(reward);
+        },
+        () => showMonkBubble(`🙏 Nguyện cầu: "${wishText.trim()}" (+${reward} Công Đức)`, 6500)
+      );
     },
     [activeActivityModal, earnMeritPoints, showMonkBubble]
   );
@@ -512,10 +542,15 @@ export function App() {
   // Chia sẻ quẻ xăm lên kênh Chat chùa
   const handleShareFortuneToChat = useCallback(
     async (slip: FortuneSlip) => {
-      if (!currentProfileRef.current) return;
+      const origin = currentProfileRef.current;
+      if (!origin) return;
       const shareText = `🎋 Hoan hỷ rút được Quẻ số ${slip.id} [${slip.rank} - ${slip.title}]: "${slip.poem[0]} / ${slip.poem[1]}"`;
-      showMonkBubble(shareText, 6500);
-      await sendTempleChatMessage(currentProfileRef.current, shareText, 'wish');
+      await completeSessionOperation(
+        origin.uid,
+        () => currentProfileRef.current?.uid,
+        () => sendTempleChatMessage(origin, shareText, 'wish'),
+        () => showMonkBubble(shareText, 6500)
+      );
     },
     [showMonkBubble]
   );
@@ -603,7 +638,9 @@ export function App() {
             profile={currentProfile}
             position={hudPosition}
             activeZone={activeActivityModal ? null : activeZone}
-            onlineCount={remoteMonks.length + 1}
+            onlineCount={countHumanPlayers(remoteMonks, currentProfile.uid)}
+            connectionStatus={connectionStatus}
+            onRetryConnection={() => setConnectionAttempt((attempt) => attempt + 1)}
             timeOfDay={timeOfDay}
             graphicsQuality={graphicsQuality}
             soundEnabled={soundEnabled}
@@ -635,6 +672,7 @@ export function App() {
             messages={chatMessages}
             onlineMonks={remoteMonks}
             onSendMessage={handleSendChatMessage}
+            connectionStatus={connectionStatus}
             aiMonksEnabled={aiMonksEnabled}
             onToggleAiMonks={handleToggleAiMonks}
           />

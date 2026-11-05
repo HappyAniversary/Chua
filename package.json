@@ -13,7 +13,8 @@
     "bake:models": "node --experimental-strip-types scripts/bake_models.ts",
     "test:figures": "node scripts/test-figures.mjs",
     "validate:figures": "node --experimental-strip-types scripts/validate_figures.ts",
-    "test:environment": "node scripts/test-environment.mjs"
+    "test:environment": "node scripts/test-environment.mjs",
+    "test:multiplayer": "node scripts/test-multiplayer.mjs"
   },
   "dependencies": {
     "@react-three/drei": "^9.114.3",

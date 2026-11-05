@@ -53,29 +53,27 @@ export const IncensePrayerModal: React.FC<IncensePrayerModalProps> = ({
   const [wishText, setWishText] = useState<string>(QUICK_WISH_SUGGESTIONS[0]);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
-  const [localSubmittedWishes, setLocalSubmittedWishes] = useState<IncenseWish[]>([]);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [incenseLit, setIncenseLit] = useState<boolean>(false);
 
-  // Gộp danh sách lời ước mới gửi tức thì với danh sách từ server/state để cập nhật ngay lập tức
+  // The session callback supplies the acknowledged wish with its canonical ID.
   const displayedWishes = useMemo(() => {
-    const combined = [...localSubmittedWishes, ...recentWishes];
     const seen = new Set<string>();
     const unique: IncenseWish[] = [];
 
-    for (const item of combined) {
-      const dedupeKey = `${item.uid}-${item.wishText.trim()}-${Math.floor(item.createdAt / 5000)}`;
-      if (!seen.has(item.id) && !seen.has(dedupeKey)) {
+    for (const item of recentWishes) {
+      if (!seen.has(item.id)) {
         seen.add(item.id);
-        seen.add(dedupeKey);
         unique.push(item);
       }
     }
     return unique.slice(0, 25);
-  }, [localSubmittedWishes, recentWishes]);
+  }, [recentWishes]);
 
   const handleSelectSuggestion = (suggestion: string) => {
     setWishText(suggestion);
     setSuccessMessage(null);
+    setErrorMessage(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -85,33 +83,20 @@ export const IncensePrayerModal: React.FC<IncensePrayerModalProps> = ({
 
     setIsSubmitting(true);
     setSuccessMessage(null);
+    setErrorMessage(null);
 
     try {
+      await onSubmitWish(trimmed);
       playIncenseChimeSound();
       setIncenseLit(true);
-
-      const optimisticWish: IncenseWish = {
-        id: `local-wish-${Date.now()}`,
-        uid: profile.uid,
-        monkName: profile.monkName,
-        robeColor: profile.robeColor,
-        wishText: trimmed,
-        createdAt: Date.now(),
-      };
-
-      setLocalSubmittedWishes((prev) => [optimisticWish, ...prev]);
-
-      await onSubmitWish(trimmed);
 
       setSuccessMessage(
         isIncenseAltar
           ? `Hoan hỷ công đức (+${meritReward} Công Đức)! Nén tâm hương của ${profile.monkName} đã quyện tỏa lên Đại Hùng Bảo Điện.`
           : `Hoan hỷ công đức (+${meritReward} Công Đức)! Thẻ ước nguyện của ${profile.monkName} đã được treo lên Cội Bồ Đề linh thiêng.`
       );
-    } catch {
-      setSuccessMessage(
-        `Thành tâm đã chứng giám (+${meritReward} Công Đức)! Lời nguyện ước của ${profile.monkName} đã được ghi nhận.`
-      );
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Chưa gửi được lời nguyện ước. Nội dung được giữ lại để bạn thử lại.');
     } finally {
       setIsSubmitting(false);
     }
@@ -125,6 +110,7 @@ export const IncensePrayerModal: React.FC<IncensePrayerModalProps> = ({
       }}
     >
       <div className="relative w-full max-w-2xl max-h-[90vh] flex flex-col rounded-3xl border-2 border-amber-500/40 bg-gradient-to-b from-stone-900 via-stone-900/98 to-stone-950 text-amber-50 shadow-[0_0_60px_rgba(217,119,6,0.28)] overflow-hidden">
+        {errorMessage && <p role="alert" className="border-b border-red-500/30 bg-red-950/70 px-5 py-3 text-xs text-red-200">{errorMessage}</p>}
         {/* Đường viền trang trí đỉnh chùa */}
         <div
           className={`h-1.5 w-full ${

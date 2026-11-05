@@ -143,13 +143,14 @@ export const AuthModal: React.FC<AuthModalProps> = ({ onAuthSuccess }) => {
           </div>
 
           <div className="inline-flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-300 text-[11px] font-medium">
-            <ShieldCheck className="w-3.5 h-3.5 text-emerald-400" />
+            <ShieldCheck className={`w-3.5 h-3.5 ${backendMode === 'firebase' ? 'text-emerald-400' : 'text-amber-400'}`} />
             <span>
               {backendMode === 'firebase'
-                ? 'Đồng bộ đám mây Firebase Auth'
-                : 'Lưu trữ bền vững Local Auth Ready'}
+                ? 'Đăng nhập tài khoản trực tuyến'
+                : 'Chơi cục bộ trên trình duyệt này'}
             </span>
           </div>
+          {backendMode === 'local' && <p className="rounded-xl border border-amber-500/25 bg-amber-500/10 px-3 py-2 text-[11px] leading-relaxed text-amber-200" role="status">Chế độ cục bộ chưa hỗ trợ nhiều người chơi giữa các thiết bị hoặc trình duyệt khác nhau.</p>}
 
           <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-amber-200">
             Chùa Từ Tâm 3D

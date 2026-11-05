@@ -22,6 +22,7 @@ npm run preview
 npm run typecheck
 npm run test:figures
 npm run test:environment
+npm run test:multiplayer
 npm run build
 ```
 
@@ -45,3 +46,13 @@ npm run validate:figures
 Mở ứng dụng với `?figure-lab` để xem các model, đổi LOD, màu áo và thử sáu hành động của nhân vật. Thêm `?renderStats=1` trong cảnh game để xem số đo render.
 
 Xem [kế hoạch sửa model](docs/plans/character-model-fix-plan.md) và [tổng quan môi trường](docs/plans/environment-implementation.md). Ảnh, video, log và bản sao trước sửa được tạo trong `outputs/` ở máy cục bộ; thư mục này không được đưa lên Git.
+
+## Multiplayer giữa các thiết bị
+
+Để chơi trên hai máy hoặc hai điện thoại, cần cấu hình Firebase Web theo `.env.example`, bật Authentication với Email/Password, tạo Cloud Firestore và triển khai `firestore.rules`. Phần đồng bộ hiện tại dùng **Cloud Firestore**; Realtime Database được khởi tạo trong cấu hình nhưng không phải transport multiplayer đang dùng.
+
+Trên Cloudflare, thêm các biến `VITE_FIREBASE_*` vào **build variables**, sau đó tạo build mới từ `main`. Các giá trị Vite được đóng vào JavaScript trong bước build; chỉ thêm biến runtime vào Worker sẽ không cập nhật client. Không đưa service-account key vào các biến `VITE_*`.
+
+Khi chưa cấu hình Firebase, ứng dụng chạy cục bộ và chỉ đồng bộ tab cùng trình duyệt. NPC không đại diện cho người chơi thật. Tài khoản cục bộ không tự chuyển thành tài khoản Firebase; cần đăng ký hoặc đăng nhập tài khoản Cloud. Để kiểm tra hai tài khoản riêng, dùng hai browser context hoặc hai thiết bị độc lập.
+
+`npm run test:multiplayer` kiểm tra client bằng Firebase SDK doubles, không tạo tài khoản hay ghi dữ liệu Cloud. `node scripts/repro-multiplayer-local.mjs --require-cross-device` là lệnh tái hiện có chủ đích: lệnh báo FAIL khi transport Local được yêu cầu kết nối hai trình duyệt độc lập. Test với Cloud thật vẫn cần hai phiên xác thực riêng và kiểm tra hiện diện, di chuyển, chat, lời nguyện và mất/kết nối lại.

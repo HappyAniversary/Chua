@@ -21,6 +21,9 @@ import {
   INTERACTION_ZONE_LIST,
   ROBE_COLOR_OPTIONS,
 } from '../../constants/templeLayout';
+import type { MultiplayerConnectionStatus } from '../../services/multiplayerService';
+import { connectionPresentation } from '../../utils/multiplayerPresentation';
+import { MultiplayerStatus } from './MultiplayerStatus';
 import type {
   GraphicsQuality,
   InteractionZoneConfig,
@@ -35,6 +38,8 @@ export interface HUDProps {
   position: Vector3Tuple;
   activeZone: InteractionZoneConfig | null;
   onlineCount: number;
+  connectionStatus: MultiplayerConnectionStatus;
+  onRetryConnection?: () => void;
   timeOfDay: TimeOfDay;
   graphicsQuality?: GraphicsQuality;
   soundEnabled: boolean;
@@ -117,6 +122,8 @@ export const HUD: React.FC<HUDProps> = memo(({
   position,
   activeZone,
   onlineCount,
+  connectionStatus,
+  onRetryConnection,
   timeOfDay,
   graphicsQuality = 'balanced',
   soundEnabled,
@@ -185,9 +192,9 @@ export const HUD: React.FC<HUDProps> = memo(({
           {/* Số Đạo Hữu đang ở chùa */}
           <div
             className="px-2.5 py-1 rounded-xl bg-stone-900/90 border border-amber-500/25 text-xs font-semibold text-amber-100 flex items-center gap-1"
-            title="Số đạo hữu đang hiện diện trong sân chùa"
+            title="Số người chơi thật, bao gồm bạn; không tính NPC"
           >
-            <span>👥 {onlineCount}</span>
+            <span>👥 {onlineCount} {connectionPresentation(connectionStatus).isOnline ? 'online' : 'trong phiên'}</span>
           </div>
 
           {/* Tọa độ (X, Z) */}
@@ -227,6 +234,7 @@ export const HUD: React.FC<HUDProps> = memo(({
               {fps} FPS
             </span>
           </div>
+          <MultiplayerStatus status={connectionStatus} onRetry={onRetryConnection} />
         </div>
 
         {/* Cụm Bên Phải: Thời gian, Đồ họa, Âm thanh, Bản đồ dịch chuyển, Camera, Đổi Pháp danh, Đăng xuất */}

@@ -243,6 +243,28 @@ function clearActiveSessionUid(): void {
   }
 }
 
+/** Browser storage may remember local accounts, but never establishes Cloud identity. */
+function synchronizeCloudSessionUid(): string | null {
+  const uid = firebaseAuth?.currentUser?.uid ?? null;
+  if (uid) {
+    if (getActiveSessionUid() !== uid) clearActiveSessionUid();
+    setActiveSessionUid(uid);
+  } else {
+    clearActiveSessionUid();
+    // Cloud sign-out also invalidates a different UID left by another local tab.
+    if (typeof window !== 'undefined') {
+      try { window.localStorage.removeItem(ACTIVE_UID_LOCAL_KEY); } catch { /* Storage may be unavailable. */ }
+    }
+  }
+  return uid;
+}
+
+function requireCurrentCloudUser(uid: string): void {
+  if (synchronizeCloudSessionUid() !== uid) {
+    throw new Error('Phiên đăng nhập đã thay đổi. Vui lòng đăng nhập lại.');
+  }
+}
+
 function upsertLocalProfileCache(
   profile: MonkProfile,
   passwordHash = 'firebase_managed'
@@ -360,6 +382,7 @@ export async function registerWithUsernamePassword(
   const now = Date.now();
 
   if (isFirebaseConfigured && firebaseAuth && firestoreDb) {
+    synchronizeCloudSessionUid();
     try {
       const authEmail = toInternalAuthEmail(normalizedUsername);
       const authPassword = toFirebaseAuthPassword(password);
@@ -368,6 +391,7 @@ export async function registerWithUsernamePassword(
         authEmail,
         authPassword
       );
+      requireCurrentCloudUser(credential.user.uid);
 
       const newProfile: MonkProfile = {
         uid: credential.user.uid,
@@ -381,6 +405,7 @@ export async function registerWithUsernamePassword(
 
       const userDocRef = doc(firestoreDb, 'users', credential.user.uid);
       await setDoc(userDocRef, newProfile);
+      requireCurrentCloudUser(credential.user.uid);
 
       upsertLocalProfileCache(
         newProfile,
@@ -453,6 +478,7 @@ export async function loginWithUsernamePassword(
   );
 
   if (isFirebaseConfigured && firebaseAuth && firestoreDb) {
+    synchronizeCloudSessionUid();
     try {
       const authEmail = toInternalAuthEmail(normalizedUsername);
       const authPassword = toFirebaseAuthPassword(password);
@@ -463,12 +489,14 @@ export async function loginWithUsernamePassword(
       );
 
       const uid = credential.user.uid;
+      requireCurrentCloudUser(uid);
       const userDocRef = doc(firestoreDb, 'users', uid);
       const snapshot = await getDoc(userDocRef);
+      requireCurrentCloudUser(uid);
 
       let profile: MonkProfile;
       if (snapshot.exists()) {
-        profile = sanitizeMonkProfile(snapshot.data() as Partial<MonkProfile>, uid);
+        profile = sanitizeMonkProfile({ ...snapshot.data() as Partial<MonkProfile>, uid }, uid);
       } else {
         const now = Date.now();
         profile = {
@@ -483,6 +511,7 @@ export async function loginWithUsernamePassword(
         await setDoc(userDocRef, profile);
       }
 
+      requireCurrentCloudUser(uid);
       upsertLocalProfileCache(profile, hashPasswordLocal(normalizedUsername, password));
       setActiveSessionUid(uid);
       return profile;
@@ -534,14 +563,12 @@ export async function logoutCurrentMonk(): Promise<void> {
 }
 
 /**
- * Khôi phục phiên đăng nhập hiện tại (ưu tiên sessionStorage của tab trước, sau đó fallback sang localStorage / Firebase Auth).
+ * Restore Cloud sessions only from Firebase Auth; local mode retains per-tab restoration.
  */
 export async function getCurrentMonkSession(): Promise<MonkProfile | null> {
-  const activeUid = getActiveSessionUid();
-
   if (isFirebaseConfigured && firebaseAuth && firestoreDb) {
-    const firebaseUser = await waitForFirebaseAuthInit();
-    const targetUid = activeUid || firebaseUser?.uid || null;
+    await waitForFirebaseAuthInit();
+    const targetUid = synchronizeCloudSessionUid();
     if (!targetUid) {
       return null;
     }
@@ -549,31 +576,32 @@ export async function getCurrentMonkSession(): Promise<MonkProfile | null> {
     try {
       const userDocRef = doc(firestoreDb, 'users', targetUid);
       const snapshot = await getDoc(userDocRef);
+      if (synchronizeCloudSessionUid() !== targetUid) return null;
       if (snapshot.exists()) {
         const profile = sanitizeMonkProfile(
-          snapshot.data() as Partial<MonkProfile>,
+          { ...snapshot.data() as Partial<MonkProfile>, uid: targetUid },
           targetUid
         );
         upsertLocalProfileCache(profile);
         setActiveSessionUid(profile.uid);
         return profile;
       }
+      return null;
     } catch (error) {
+      if (synchronizeCloudSessionUid() !== targetUid) return null;
       console.warn(
         '[AuthService] Không thể tải hồ sơ từ Firestore, thử đọc từ bộ nhớ đệm:',
         error
       );
+      const cached = readLocalAccounts().find(
+        (account) => account.uid === targetUid && account.profile.uid === targetUid
+      );
+      return cached ? sanitizeMonkProfile(cached.profile, targetUid) : null;
     }
-
-    const cachedAccounts = readLocalAccounts();
-    const cached = cachedAccounts.find((acc) => acc.uid === targetUid);
-    if (cached) {
-      return sanitizeMonkProfile(cached.profile, cached.uid);
-    }
-    return null;
   }
 
   // Chế độ Local Fallback
+  const activeUid = getActiveSessionUid();
   if (!activeUid) {
     return null;
   }
@@ -607,57 +635,59 @@ export async function updateMonkProfile(
       ? sanitizeMonkProfile(accounts[localIndex].profile, uid)
       : null;
 
-  if (isFirebaseConfigured && firestoreDb) {
-    try {
-      const userDocRef = doc(firestoreDb, 'users', uid);
-      if (!baseProfile) {
-        const snapshot = await getDoc(userDocRef);
-        if (snapshot.exists()) {
-          baseProfile = sanitizeMonkProfile(
-            snapshot.data() as Partial<MonkProfile>,
-            uid
-          );
-        }
-      }
-
-      const updatedProfile: MonkProfile = {
-        uid,
-        username: baseProfile?.username ?? `monk_${uid.slice(0, 6)}`,
-        monkName:
-          updates.monkName !== undefined
-            ? updates.monkName.trim()
-            : (baseProfile?.monkName ?? ''),
-        robeColor:
-          updates.robeColor !== undefined && isValidRobeColor(updates.robeColor)
-            ? updates.robeColor
-            : (baseProfile?.robeColor ?? DEFAULT_ROBE_COLOR),
-        meritPoints:
-          updates.meritPoints !== undefined && Number.isFinite(updates.meritPoints)
-            ? Math.max(0, Math.floor(updates.meritPoints))
-            : (baseProfile?.meritPoints ?? 0),
-        createdAt: baseProfile?.createdAt ?? now,
-        updatedAt: now,
-      };
-
-      try {
-        await updateDoc(userDocRef, {
-          monkName: updatedProfile.monkName,
-          robeColor: updatedProfile.robeColor,
-          meritPoints: updatedProfile.meritPoints,
-          updatedAt: updatedProfile.updatedAt,
-        });
-      } catch {
-        await setDoc(userDocRef, updatedProfile, { merge: true });
-      }
-
-      upsertLocalProfileCache(updatedProfile);
-      return updatedProfile;
-    } catch (error) {
-      console.warn(
-        '[AuthService] Không thể cập nhật Firestore, lưu vào bộ nhớ cục bộ:',
-        error
-      );
+  if (isFirebaseConfigured) {
+    requireCurrentCloudUser(uid);
+    if (!firestoreDb) {
+      throw new Error('Chưa thiết lập được kết nối hồ sơ trực tuyến.');
     }
+    const userDocRef = doc(firestoreDb, 'users', uid);
+    if (!baseProfile) {
+      const snapshot = await getDoc(userDocRef);
+      requireCurrentCloudUser(uid);
+      if (snapshot.exists()) {
+        baseProfile = sanitizeMonkProfile(
+          { ...snapshot.data() as Partial<MonkProfile>, uid },
+          uid
+        );
+      }
+    }
+
+    const updatedProfile: MonkProfile = {
+      uid,
+      username: baseProfile?.username ?? `monk_${uid.slice(0, 6)}`,
+      monkName:
+        updates.monkName !== undefined
+          ? updates.monkName.trim()
+          : (baseProfile?.monkName ?? ''),
+      robeColor:
+        updates.robeColor !== undefined && isValidRobeColor(updates.robeColor)
+          ? updates.robeColor
+          : (baseProfile?.robeColor ?? DEFAULT_ROBE_COLOR),
+      meritPoints:
+        updates.meritPoints !== undefined && Number.isFinite(updates.meritPoints)
+          ? Math.max(0, Math.floor(updates.meritPoints))
+          : (baseProfile?.meritPoints ?? 0),
+      createdAt: baseProfile?.createdAt ?? now,
+      updatedAt: now,
+    };
+
+    requireCurrentCloudUser(uid);
+    try {
+      await updateDoc(userDocRef, {
+        monkName: updatedProfile.monkName,
+        robeColor: updatedProfile.robeColor,
+        meritPoints: updatedProfile.meritPoints,
+        updatedAt: updatedProfile.updatedAt,
+      });
+    } catch (error) {
+      requireCurrentCloudUser(uid);
+      // Only a missing document permits creation; denied/failed writes remain failures.
+      if (extractFirebaseErrorCode(error) !== 'not-found') throw error;
+      await setDoc(userDocRef, updatedProfile, { merge: true });
+    }
+    requireCurrentCloudUser(uid);
+    upsertLocalProfileCache(updatedProfile);
+    return updatedProfile;
   }
 
   if (!baseProfile) {

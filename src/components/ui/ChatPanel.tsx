@@ -7,6 +7,8 @@ import {
   Users,
 } from 'lucide-react';
 import { ROBE_COLOR_OPTIONS } from '../../constants/templeLayout';
+import type { MultiplayerConnectionStatus } from '../../services/multiplayerService';
+import { connectionPresentation, countHumanPlayers, sendFailureMessage } from '../../utils/multiplayerPresentation';
 import type {
   ChatMessage,
   MonkActionState,
@@ -20,6 +22,7 @@ export interface ChatPanelProps {
   messages: ChatMessage[];
   onlineMonks: MonkPresence[];
   onSendMessage: (text: string) => Promise<void> | void;
+  connectionStatus: MultiplayerConnectionStatus;
   aiMonksEnabled?: boolean;
   onToggleAiMonks?: (enabled: boolean) => void;
 }
@@ -71,6 +74,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   messages,
   onlineMonks,
   onSendMessage,
+  connectionStatus,
   aiMonksEnabled = true,
   onToggleAiMonks,
 }) => {
@@ -80,6 +84,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [activeTab, setActiveTab] = useState<'chat' | 'online'>('chat');
   const [draftText, setDraftText] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
+  const [sendError, setSendError] = useState<string | null>(null);
   const [lastSeenCount, setLastSeenCount] = useState<number>(messages.length);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -96,16 +101,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
     ? 0
     : Math.max(0, messages.length - lastSeenCount);
 
-  const totalOnline = onlineMonks.length + 1;
+  const totalOnline = countHumanPlayers(onlineMonks, profile.uid);
+  const connection = connectionPresentation(connectionStatus);
 
   const handleSendText = async (rawText: string) => {
     const trimmed = rawText.trim().replace(/\s+/g, ' ');
     if (!trimmed || isSending) return;
 
     setIsSending(true);
+    setSendError(null);
     try {
       await onSendMessage(trimmed);
-      setDraftText('');
+      setDraftText((current) => current.trim().replace(/\s+/g, ' ') === trimmed ? '' : current);
+    } catch (error) {
+      setSendError(sendFailureMessage(error));
+      setDraftText((current) => current.trim() ? current : rawText);
     } finally {
       setIsSending(false);
     }
@@ -143,7 +153,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
               <span>Trò Chuyện Sân Chùa</span>
             </div>
             <div className="text-[11px] text-amber-300/80 flex items-center gap-2">
-              <span>👥 {totalOnline} đạo hữu</span>
+              <span>👥 {totalOnline} người chơi{connection.isOnline ? ' online' : ' trong phiên'}</span>
               <span>•</span>
               <span>💬 {messages.length} tin</span>
             </div>
@@ -155,7 +165,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
   return (
     <aside
-      aria-label="Khung Trò Chuyện Sân Chùa và Đạo Hữu Online"
+      aria-label="Khung Trò Chuyện Sân Chùa và Người Chơi"
       className="fixed bottom-4 right-4 z-30 w-[310px] sm:w-[356px] max-w-[calc(100vw-1.5rem)] rounded-2xl bg-stone-950/90 border border-amber-500/40 shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md text-amber-50 flex flex-col overflow-hidden pointer-events-auto"
     >
       {/* Thanh tiêu đề & Nút chuyển Tab */}
@@ -184,7 +194,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             }`}
           >
             <Users className="w-3.5 h-3.5 shrink-0" />
-            <span className="truncate">Đạo Hữu ({totalOnline})</span>
+            <span className="truncate">Người chơi ({totalOnline})</span>
           </button>
         </div>
 
@@ -298,6 +308,8 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <div ref={messagesEndRef} />
           </div>
 
+          {sendError && <p role="alert" className="border-t border-red-500/25 bg-red-950/60 px-3 py-2 text-[11px] text-red-200">{sendError}</p>}
+
           {/* Các chip câu chúc nhanh 1 chạm */}
           <div className="px-2.5 py-1.5 bg-stone-900/70 border-t border-amber-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
             {QUICK_BLESSINGS.map((chip) => (
@@ -321,7 +333,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <input
               type="text"
               value={draftText}
-              onChange={(e) => setDraftText(e.target.value)}
+              onChange={(e) => { setDraftText(e.target.value); setSendError(null); }}
               onKeyDown={(e) => {
                 e.stopPropagation();
               }}
@@ -410,6 +422,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
                   <div className="min-w-0">
                     <div className="text-xs font-semibold text-amber-100 truncate">
                       {monk.monkName}
+                      {monk.isNpc && <span className="ml-1.5 text-[10px] text-amber-300/60">NPC</span>}
                     </div>
                     <div className="text-[11px] text-amber-300/75 truncate">
                       {getActionStateLabel(monk.actionState)}
