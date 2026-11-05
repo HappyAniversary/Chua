@@ -4,6 +4,8 @@ import {
   Box,
   Camera,
   Compass,
+  Eye,
+  EyeOff,
   Gauge,
   LogOut,
   MapPin,
@@ -143,6 +145,7 @@ export const HUD: React.FC<HUDProps> = memo(({
 }) => {
   const [isMapOpen, setIsMapOpen] = useState<boolean>(false);
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState<boolean>(false);
+  const [areControlsVisible, setAreControlsVisible] = useState(true);
   const fps = useFpsCounter();
 
   const robeInfo =
@@ -157,7 +160,7 @@ export const HUD: React.FC<HUDProps> = memo(({
       {/* Thanh Trạng Thái Phía Trên (Top Bar) */}
       <header className="fixed top-0 inset-x-0 z-30 p-2.5 sm:p-4 pointer-events-none flex flex-col lg:flex-row items-stretch lg:items-start justify-between gap-2.5">
         {/* Cụm Bên Trái: Hồ sơ Chú Tiểu, Công Đức, Đạo Hữu Online, Tọa Độ, FPS */}
-        <div className="pointer-events-auto flex flex-wrap items-center gap-2 bg-stone-950/85 border border-amber-500/35 rounded-2xl px-3.5 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-md">
+        <div className="pointer-events-auto lg:max-w-[50%] flex flex-wrap items-center gap-2 bg-stone-950/85 border border-amber-500/35 rounded-2xl px-3.5 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-md">
           {/* Huy hiệu màu áo cà sa + Pháp danh + @username */}
           <div className="flex items-center gap-2.5 pr-2 border-r border-amber-500/20">
             <span
@@ -238,288 +241,309 @@ export const HUD: React.FC<HUDProps> = memo(({
         </div>
 
         {/* Cụm Bên Phải: Thời gian, Đồ họa, Âm thanh, Bản đồ dịch chuyển, Camera, Đổi Pháp danh, Đăng xuất */}
-        <div className="pointer-events-auto flex flex-wrap items-center justify-end gap-1.5 sm:gap-2">
-          {/* Bộ chuyển đổi thời gian: Ban Ngày / Hoàng Hôn / Đêm Trăng */}
-          <div className="flex items-center bg-stone-950/85 border border-amber-500/35 rounded-xl p-1 backdrop-blur-md shadow">
-            {TIME_OPTIONS.map((item) => {
-              const Icon = item.icon;
-              const active = timeOfDay === item.id;
-              return (
-                <button
-                  key={item.id}
-                  type="button"
-                  aria-label={item.label}
-                  aria-pressed={active}
-                  onClick={() => onChangeTimeOfDay(item.id)}
-                  className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                    active
-                      ? 'bg-amber-500 text-stone-950 shadow'
-                      : 'text-amber-200/75 hover:text-amber-100 hover:bg-stone-800/60'
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  <span className="hidden sm:inline">{item.label}</span>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Bộ chọn chất lượng đồ họa (High / Balanced / Low) */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsQualityMenuOpen((prev) => !prev)}
-              title="Cài đặt chất lượng đồ họa (Cao / Cân bằng / Tiết kiệm pin)"
-              className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
-            >
-              <Sliders className="w-3.5 h-3.5 text-amber-300" />
-              <span className="hidden md:inline">
-                {graphicsQuality === 'high'
-                  ? 'Đồ Họa: Cao'
-                  : graphicsQuality === 'low'
-                  ? 'Đồ Họa: Tiết Kiệm'
-                  : 'Đồ Họa: Cân Bằng'}
-              </span>
-            </button>
-            {isQualityMenuOpen && (
-              <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-2xl backdrop-blur-xl p-2.5 text-amber-50 z-50">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300 px-2 py-1 border-b border-amber-500/20 mb-1.5 flex items-center justify-between">
-                  <span>Chất Lượng Đồ Họa</span>
+        <div className="pointer-events-auto flex min-w-0 flex-col items-end gap-1.5 lg:max-w-[50%]">
+          <button
+            type="button"
+            aria-label={areControlsVisible ? 'Ẩn giao diện tương tác' : 'Hiện giao diện tương tác'}
+            aria-expanded={areControlsVisible}
+            aria-controls="hud-interaction-controls"
+            onClick={() => {
+              setAreControlsVisible((visible) => !visible);
+              setIsMapOpen(false);
+              setIsQualityMenuOpen(false);
+            }}
+            className="min-h-11 px-3 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+          >
+            {areControlsVisible ? <EyeOff className="w-4 h-4 text-amber-300" /> : <Eye className="w-4 h-4 text-amber-300" />}
+            <span>{areControlsVisible ? 'Ẩn giao diện' : 'Hiện giao diện'}</span>
+          </button>
+          <div
+            id="hud-interaction-controls"
+            hidden={!areControlsVisible}
+            className={`${areControlsVisible ? 'flex' : 'hidden'} max-w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2`}
+          >
+            {/* Bộ chuyển đổi thời gian: Ban Ngày / Hoàng Hôn / Đêm Trăng */}
+            <div className="flex items-center bg-stone-950/85 border border-amber-500/35 rounded-xl p-1 backdrop-blur-md shadow">
+              {TIME_OPTIONS.map((item) => {
+                const Icon = item.icon;
+                const active = timeOfDay === item.id;
+                return (
                   <button
+                    key={item.id}
                     type="button"
-                    onClick={() => setIsQualityMenuOpen(false)}
-                    className="text-[10px] text-amber-400 hover:text-amber-200"
+                    aria-label={item.label}
+                    aria-pressed={active}
+                    onClick={() => onChangeTimeOfDay(item.id)}
+                    className={`flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                      active
+                        ? 'bg-amber-500 text-stone-950 shadow'
+                        : 'text-amber-200/75 hover:text-amber-100 hover:bg-stone-800/60'
+                    }`}
                   >
-                    Đóng
+                    <Icon className="w-3.5 h-3.5" />
+                    <span className="hidden sm:inline">{item.label}</span>
                   </button>
-                </div>
-                {QUALITY_OPTIONS.map((q) => {
-                  const active = graphicsQuality === q.id;
-                  return (
+                );
+              })}
+            </div>
+
+            {/* Bộ chọn chất lượng đồ họa (High / Balanced / Low) */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsQualityMenuOpen((prev) => !prev)}
+                title="Cài đặt chất lượng đồ họa (Cao / Cân bằng / Tiết kiệm pin)"
+                className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
+              >
+                <Sliders className="w-3.5 h-3.5 text-amber-300" />
+                <span className="hidden md:inline">
+                  {graphicsQuality === 'high'
+                    ? 'Đồ Họa: Cao'
+                    : graphicsQuality === 'low'
+                    ? 'Đồ Họa: Tiết Kiệm'
+                    : 'Đồ Họa: Cân Bằng'}
+                </span>
+              </button>
+              {isQualityMenuOpen && (
+                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-2xl backdrop-blur-xl p-2.5 text-amber-50 z-50">
+                  <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300 px-2 py-1 border-b border-amber-500/20 mb-1.5 flex items-center justify-between">
+                    <span>Chất Lượng Đồ Họa</span>
                     <button
-                      key={q.id}
                       type="button"
-                      onClick={() => {
-                        onChangeGraphicsQuality?.(q.id);
-                        setIsQualityMenuOpen(false);
-                      }}
-                      className={`w-full text-left px-2.5 py-2 rounded-xl text-xs transition mb-1 flex items-center justify-between ${
-                        active
-                          ? 'bg-amber-500/25 border border-amber-400/60 text-amber-200 font-bold'
-                          : 'hover:bg-stone-800/80 text-amber-100/80'
-                      }`}
+                      onClick={() => setIsQualityMenuOpen(false)}
+                      className="text-[10px] text-amber-400 hover:text-amber-200"
                     >
-                      <div>
-                        <div>{q.label}</div>
-                        <div className="text-[10px] text-amber-200/60">{q.desc}</div>
-                      </div>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 border border-amber-500/20 font-mono">
-                        {q.badge}
-                      </span>
+                      Đóng
                     </button>
-                  );
-                })}
-              </div>
-            )}
-          </div>
-
-          {/* Nút bật/tắt Âm thanh hiệu ứng & Nhạc thiền nền */}
-          <div className="flex items-center gap-1 bg-stone-950/85 border border-amber-500/35 rounded-xl p-1 backdrop-blur-md shadow">
-            <button
-              type="button"
-              onClick={onToggleSound}
-              title={
-                soundEnabled
-                  ? 'Đang bật âm thanh hiệu ứng (Chuông, Mõ, Quẻ Xăm)'
-                  : 'Đang tắt âm thanh hiệu ứng'
-              }
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition ${
-                soundEnabled
-                  ? 'bg-amber-500/20 text-amber-200 border border-amber-400/40'
-                  : 'text-stone-400 hover:text-amber-200'
-              }`}
-            >
-              {soundEnabled ? (
-                <Volume2 className="w-3.5 h-3.5 text-amber-300" />
-              ) : (
-                <VolumeX className="w-3.5 h-3.5" />
-              )}
-              <span className="hidden md:inline">Âm Thanh</span>
-            </button>
-
-            <button
-              type="button"
-              onClick={onToggleAmbientMusic}
-              title={
-                ambientMusicEnabled
-                  ? 'Đang bật nhạc thiền nền thanh tịnh'
-                  : 'Bật nhạc thiền nền thanh tịnh'
-              }
-              className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition ${
-                ambientMusicEnabled
-                  ? 'bg-amber-500/20 text-amber-200 border border-amber-400/40'
-                  : 'text-stone-400 hover:text-amber-200'
-              }`}
-            >
-              <Music className="w-3.5 h-3.5" />
-              <span className="hidden md:inline">Nhạc Thiền</span>
-            </button>
-          </div>
-
-          {/* Menu / Popover Bản Đồ & Dịch Chuyển Nhanh */}
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setIsMapOpen((prev) => !prev)}
-              className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow transition ${
-                isMapOpen
-                  ? 'bg-amber-500 text-stone-950 border-amber-300'
-                  : 'bg-stone-950/85 hover:bg-stone-900 text-amber-100 border-amber-500/35'
-              }`}
-            >
-              <Compass className="w-4 h-4" />
-              <span>Bản Đồ & Dịch Chuyển Nhanh</span>
-            </button>
-
-            {isMapOpen && (
-              <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-[0_16px_48px_rgba(0,0,0,0.85)] backdrop-blur-xl p-3.5 text-amber-50 z-40">
-                <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-amber-500/20">
-                  <div>
-                    <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">
-                      Bản Đồ 5 Khu Vực Tâm Linh
-                    </h3>
-                    <p className="text-[11px] text-amber-200/65">
-                      Chọn khu vực để dịch chuyển Chú Tiểu tới ngay
-                    </p>
                   </div>
-                  <button
-                    type="button"
-                    onClick={() => setIsMapOpen(false)}
-                    className="text-xs text-amber-300 hover:text-amber-100 px-2 py-0.5 rounded-lg bg-stone-900 border border-amber-500/25"
-                  >
-                    Đóng
-                  </button>
-                </div>
-
-                {/* Danh sách 5 khu vực trong INTERACTION_ZONE_LIST */}
-                <div className="space-y-1.5 mb-3">
-                  {INTERACTION_ZONE_LIST.map((zone) => {
-                    const isHere = activeZone?.id === zone.id;
+                  {QUALITY_OPTIONS.map((q) => {
+                    const active = graphicsQuality === q.id;
                     return (
-                      <div
-                        key={zone.id}
-                        className={`p-2 rounded-xl border flex items-center justify-between gap-2 transition ${
-                          isHere
-                            ? 'bg-amber-500/20 border-amber-400/60'
-                            : 'bg-stone-900/80 border-amber-500/20 hover:border-amber-400/40'
+                      <button
+                        key={q.id}
+                        type="button"
+                        onClick={() => {
+                          onChangeGraphicsQuality?.(q.id);
+                          setIsQualityMenuOpen(false);
+                        }}
+                        className={`w-full text-left px-2.5 py-2 rounded-xl text-xs transition mb-1 flex items-center justify-between ${
+                          active
+                            ? 'bg-amber-500/25 border border-amber-400/60 text-amber-200 font-bold'
+                            : 'hover:bg-stone-800/80 text-amber-100/80'
                         }`}
                       >
-                        <div className="min-w-0">
-                          <div className="text-xs font-bold text-amber-100 truncate flex items-center gap-1.5">
-                            <span
-                              className="w-2 h-2 rounded-full shrink-0"
-                              style={{ backgroundColor: zone.highlightColor }}
-                            />
-                            <span className="truncate">{zone.name}</span>
-                          </div>
-                          <div className="text-[10px] text-amber-200/70 truncate">
-                            {zone.subtitle} • +{zone.meritReward} Công Đức
-                          </div>
+                        <div>
+                          <div>{q.label}</div>
+                          <div className="text-[10px] text-amber-200/60">{q.desc}</div>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            onTeleportToZone(zone);
-                            setIsMapOpen(false);
-                          }}
-                          className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500/25 hover:bg-amber-500 text-amber-200 hover:text-stone-950 border border-amber-400/40 text-[11px] font-bold transition"
-                        >
-                          Dịch chuyển
-                        </button>
-                      </div>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-stone-800 border border-amber-500/20 font-mono">
+                          {q.badge}
+                        </span>
+                      </button>
                     );
                   })}
                 </div>
+              )}
+            </div>
 
-                {/* Chọn nhanh động tác Chú Tiểu */}
-                <div className="pt-2.5 border-t border-amber-500/20">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-2">
-                    Động Tác Chú Tiểu Nhanh
+            {/* Nút bật/tắt Âm thanh hiệu ứng & Nhạc thiền nền */}
+            <div className="flex items-center gap-1 bg-stone-950/85 border border-amber-500/35 rounded-xl p-1 backdrop-blur-md shadow">
+              <button
+                type="button"
+                onClick={onToggleSound}
+                title={
+                  soundEnabled
+                    ? 'Đang bật âm thanh hiệu ứng (Chuông, Mõ, Quẻ Xăm)'
+                    : 'Đang tắt âm thanh hiệu ứng'
+                }
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition ${
+                  soundEnabled
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-400/40'
+                    : 'text-stone-400 hover:text-amber-200'
+                }`}
+              >
+                {soundEnabled ? (
+                  <Volume2 className="w-3.5 h-3.5 text-amber-300" />
+                ) : (
+                  <VolumeX className="w-3.5 h-3.5" />
+                )}
+                <span className="hidden md:inline">Âm Thanh</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={onToggleAmbientMusic}
+                title={
+                  ambientMusicEnabled
+                    ? 'Đang bật nhạc thiền nền thanh tịnh'
+                    : 'Bật nhạc thiền nền thanh tịnh'
+                }
+                className={`px-2.5 py-1 rounded-lg text-xs font-semibold flex items-center gap-1 transition ${
+                  ambientMusicEnabled
+                    ? 'bg-amber-500/20 text-amber-200 border border-amber-400/40'
+                    : 'text-stone-400 hover:text-amber-200'
+                }`}
+              >
+                <Music className="w-3.5 h-3.5" />
+                <span className="hidden md:inline">Nhạc Thiền</span>
+              </button>
+            </div>
+
+            {/* Menu / Popover Bản Đồ & Dịch Chuyển Nhanh */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => setIsMapOpen((prev) => !prev)}
+                className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow transition ${
+                  isMapOpen
+                    ? 'bg-amber-500 text-stone-950 border-amber-300'
+                    : 'bg-stone-950/85 hover:bg-stone-900 text-amber-100 border-amber-500/35'
+                }`}
+              >
+                <Compass className="w-4 h-4" />
+                <span>Bản Đồ & Dịch Chuyển Nhanh</span>
+              </button>
+
+              {isMapOpen && (
+                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-[0_16px_48px_rgba(0,0,0,0.85)] backdrop-blur-xl p-3.5 text-amber-50 z-40">
+                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-amber-500/20">
+                    <div>
+                      <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">
+                        Bản Đồ 5 Khu Vực Tâm Linh
+                      </h3>
+                      <p className="text-[11px] text-amber-200/65">
+                        Chọn khu vực để dịch chuyển Chú Tiểu tới ngay
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setIsMapOpen(false)}
+                      className="text-xs text-amber-300 hover:text-amber-100 px-2 py-0.5 rounded-lg bg-stone-900 border border-amber-500/25"
+                    >
+                      Đóng
+                    </button>
                   </div>
-                  <div className="flex flex-wrap gap-1.5">
-                    {QUICK_ACTIONS.map((act) => {
-                      const active = currentActionState === act.state;
+
+                  {/* Danh sách 5 khu vực trong INTERACTION_ZONE_LIST */}
+                  <div className="space-y-1.5 mb-3">
+                    {INTERACTION_ZONE_LIST.map((zone) => {
+                      const isHere = activeZone?.id === zone.id;
                       return (
-                        <button
-                          key={act.state}
-                          type="button"
-                          onClick={() => {
-                            onQuickActionState(act.state);
-                            setIsMapOpen(false);
-                          }}
-                          className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition flex items-center gap-1 ${
-                            active
-                              ? 'bg-amber-500 text-stone-950 border-amber-300 shadow'
-                              : 'bg-stone-900/90 hover:bg-stone-800 text-amber-100 border-amber-500/25'
+                        <div
+                          key={zone.id}
+                          className={`p-2 rounded-xl border flex items-center justify-between gap-2 transition ${
+                            isHere
+                              ? 'bg-amber-500/20 border-amber-400/60'
+                              : 'bg-stone-900/80 border-amber-500/20 hover:border-amber-400/40'
                           }`}
                         >
-                          <span>{act.emoji}</span>
-                          <span>{act.label}</span>
-                        </button>
+                          <div className="min-w-0">
+                            <div className="text-xs font-bold text-amber-100 truncate flex items-center gap-1.5">
+                              <span
+                                className="w-2 h-2 rounded-full shrink-0"
+                                style={{ backgroundColor: zone.highlightColor }}
+                              />
+                              <span className="truncate">{zone.name}</span>
+                            </div>
+                            <div className="text-[10px] text-amber-200/70 truncate">
+                              {zone.subtitle} • +{zone.meritReward} Công Đức
+                            </div>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              onTeleportToZone(zone);
+                              setIsMapOpen(false);
+                            }}
+                            className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-500/25 hover:bg-amber-500 text-amber-200 hover:text-stone-950 border border-amber-400/40 text-[11px] font-bold transition"
+                          >
+                            Dịch chuyển
+                          </button>
+                        </div>
                       );
                     })}
                   </div>
+
+                  {/* Chọn nhanh động tác Chú Tiểu */}
+                  <div className="pt-2.5 border-t border-amber-500/20">
+                    <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300 mb-2">
+                      Động Tác Chú Tiểu Nhanh
+                    </div>
+                    <div className="flex flex-wrap gap-1.5">
+                      {QUICK_ACTIONS.map((act) => {
+                        const active = currentActionState === act.state;
+                        return (
+                          <button
+                            key={act.state}
+                            type="button"
+                            onClick={() => {
+                              onQuickActionState(act.state);
+                              setIsMapOpen(false);
+                            }}
+                            className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition flex items-center gap-1 ${
+                              active
+                                ? 'bg-amber-500 text-stone-950 border-amber-300 shadow'
+                                : 'bg-stone-900/90 hover:bg-stone-800 text-amber-100 border-amber-500/25'
+                            }`}
+                          >
+                            <span>{act.emoji}</span>
+                            <span>{act.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              )}
+            </div>
 
-          {/* Nút Đặt lại Camera */}
-          <button
-            type="button"
-            onClick={onResetCamera}
-            title="Đặt lại góc nhìn Camera sau lưng Chú Tiểu"
-            className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
-          >
-            <Camera className="w-3.5 h-3.5 text-amber-300" />
-            <span className="hidden xl:inline">Đặt lại Camera</span>
-          </button>
-
-          {/* Nút Đổi Pháp Danh / Áo */}
-          <button
-            type="button"
-            onClick={onOpenEditMonk}
-            title="Đổi Pháp Danh hoặc Màu Áo Cà Sa"
-            className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
-          >
-            <Palette className="w-3.5 h-3.5 text-amber-300" />
-            <span className="hidden sm:inline">Đổi Pháp Danh / Áo</span>
-          </button>
-
-          {/* Nút Mở Phòng Thử Nghiệm Tượng 3D (Figure Lab) */}
-          {onOpenFigureLab && (
+            {/* Nút Đặt lại Camera */}
             <button
               type="button"
-              onClick={onOpenFigureLab}
-              title="Mở phòng thí nghiệm & xem trước mô hình 3D (Figure Lab)"
-              className="px-2.5 py-2 rounded-xl bg-gradient-to-r from-amber-600/30 to-amber-500/20 hover:from-amber-600/50 hover:to-amber-500/40 border border-amber-400/50 text-xs font-semibold text-amber-200 flex items-center gap-1.5 backdrop-blur-md shadow transition"
+              onClick={onResetCamera}
+              title="Đặt lại góc nhìn Camera sau lưng Chú Tiểu"
+              className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
             >
-              <Box className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
-              <span className="hidden lg:inline">Xưởng Tượng 3D</span>
+              <Camera className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden xl:inline">Đặt lại Camera</span>
             </button>
-          )}
 
-          {/* Nút Đăng Xuất */}
-          <button
-            type="button"
-            onClick={onLogout}
-            title="Đăng xuất tài khoản"
-            className="px-2.5 py-2 rounded-xl bg-red-950/80 hover:bg-red-900/90 border border-red-400/35 text-xs font-semibold text-red-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
-          >
-            <LogOut className="w-3.5 h-3.5 text-red-300" />
-            <span className="hidden sm:inline">Đăng Xuất</span>
-          </button>
+            {/* Nút Đổi Pháp Danh / Áo */}
+            <button
+              type="button"
+              onClick={onOpenEditMonk}
+              title="Đổi Pháp Danh hoặc Màu Áo Cà Sa"
+              className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
+            >
+              <Palette className="w-3.5 h-3.5 text-amber-300" />
+              <span className="hidden sm:inline">Đổi Pháp Danh / Áo</span>
+            </button>
+
+            {/* Nút Mở Phòng Thử Nghiệm Tượng 3D (Figure Lab) */}
+            {onOpenFigureLab && (
+              <button
+                type="button"
+                onClick={onOpenFigureLab}
+                title="Mở phòng thí nghiệm & xem trước mô hình 3D (Figure Lab)"
+                className="px-2.5 py-2 rounded-xl bg-gradient-to-r from-amber-600/30 to-amber-500/20 hover:from-amber-600/50 hover:to-amber-500/40 border border-amber-400/50 text-xs font-semibold text-amber-200 flex items-center gap-1.5 backdrop-blur-md shadow transition"
+              >
+                <Box className="w-3.5 h-3.5 text-amber-300 animate-pulse" />
+                <span className="hidden lg:inline">Xưởng Tượng 3D</span>
+              </button>
+            )}
+
+            {/* Nút Đăng Xuất */}
+            <button
+              type="button"
+              onClick={onLogout}
+              title="Đăng xuất tài khoản"
+              className="px-2.5 py-2 rounded-xl bg-red-950/80 hover:bg-red-900/90 border border-red-400/35 text-xs font-semibold text-red-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
+            >
+              <LogOut className="w-3.5 h-3.5 text-red-300" />
+              <span className="hidden sm:inline">Đăng Xuất</span>
+            </button>
+          </div>
         </div>
       </header>
 
