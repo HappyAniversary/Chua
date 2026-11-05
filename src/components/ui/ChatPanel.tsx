@@ -7,8 +7,10 @@ import {
   Users,
 } from 'lucide-react';
 import { ROBE_COLOR_OPTIONS } from '../../constants/templeLayout';
+import { useCompactLayout } from '../../hooks/useCompactLayout';
 import type { MultiplayerConnectionStatus } from '../../services/multiplayerService';
 import { connectionPresentation, countHumanPlayers, sendFailureMessage } from '../../utils/multiplayerPresentation';
+import { ResponsivePanel } from './ResponsivePanel';
 import type {
   ChatMessage,
   MonkActionState,
@@ -25,6 +27,7 @@ export interface ChatPanelProps {
   connectionStatus: MultiplayerConnectionStatus;
   aiMonksEnabled?: boolean;
   onToggleAiMonks?: (enabled: boolean) => void;
+  onMobilePanelChange?: (open: boolean) => void;
 }
 
 const QUICK_BLESSINGS: string[] = [
@@ -77,10 +80,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   connectionStatus,
   aiMonksEnabled = true,
   onToggleAiMonks,
+  onMobilePanelChange,
 }) => {
-  const [isOpen, setIsOpen] = useState(() =>
-    typeof window === 'undefined' || !window.matchMedia('(max-width: 639px)').matches
-  );
+  const isCompact = useCompactLayout();
+  const [isOpen, setIsOpen] = useState(() => !isCompact);
   const [activeTab, setActiveTab] = useState<'chat' | 'online'>('chat');
   const [draftText, setDraftText] = useState<string>('');
   const [isSending, setIsSending] = useState<boolean>(false);
@@ -88,6 +91,17 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   const [lastSeenCount, setLastSeenCount] = useState<number>(messages.length);
 
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const launcherRef = useRef<HTMLButtonElement | null>(null);
+  const wasOpenRef = useRef(isOpen);
+
+  useEffect(() => {
+    if (wasOpenRef.current && !isOpen) launcherRef.current?.focus();
+    wasOpenRef.current = isOpen;
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (isCompact) setIsOpen(false);
+  }, [isCompact]);
 
   // Tự động cuộn xuống cuối danh sách khi có tin nhắn mới hoặc mở khung Chat
   useEffect(() => {
@@ -129,14 +143,15 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   // Trạng thái thu gọn ở góc dưới bên phải (không che Virtual Joystick ở góc dưới bên trái)
   if (!isOpen) {
     return (
-      <div className="fixed bottom-4 right-4 z-30 select-none pointer-events-auto">
+      <div className="temple-chat-launcher fixed bottom-4 right-4 z-30 select-none pointer-events-auto">
         <button
+          ref={launcherRef}
           type="button"
           onClick={() => {
             setIsOpen(true);
             setLastSeenCount(messages.length);
           }}
-          className="group flex items-center gap-2.5 px-3 sm:px-4 py-2.5 rounded-2xl bg-stone-950/90 hover:bg-stone-900/95 border border-amber-500/45 shadow-[0_8px_28px_rgba(0,0,0,0.65)] backdrop-blur-md text-amber-100 transition-all hover:border-amber-400"
+          className="temple-chat-launch-button group flex items-center gap-2.5 px-3 sm:px-4 py-2.5 rounded-2xl bg-stone-950/90 hover:bg-stone-900/95 border border-amber-500/45 shadow-[0_8px_28px_rgba(0,0,0,0.65)] backdrop-blur-md text-amber-100 transition-all hover:border-amber-400"
           aria-label="Mở khung Trò Chuyện Sân Chùa"
         >
           <div className="relative flex items-center justify-center w-8 h-8 rounded-xl bg-amber-500/20 border border-amber-400/40 text-amber-300">
@@ -148,7 +163,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             )}
           </div>
 
-          <div className="hidden sm:block text-left">
+          <div className="temple-chat-launch-label hidden sm:block text-left">
             <div className="text-xs font-bold text-amber-100 flex items-center gap-1.5">
               <span>Trò Chuyện Sân Chùa</span>
             </div>
@@ -164,17 +179,21 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
   }
 
   return (
-    <aside
-      aria-label="Khung Trò Chuyện Sân Chùa và Người Chơi"
-      className="fixed bottom-4 right-4 z-30 w-[310px] sm:w-[356px] max-w-[calc(100vw-1.5rem)] rounded-2xl bg-stone-950/90 border border-amber-500/40 shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md text-amber-50 flex flex-col overflow-hidden pointer-events-auto"
+    <ResponsivePanel
+      as="aside"
+      label="Khung Trò Chuyện Sân Chùa và Người Chơi"
+      onClose={() => setIsOpen(false)}
+      onMobileOpenChange={onMobilePanelChange}
+      desktopClassName="fixed bottom-4 right-4 z-30 w-[310px] sm:w-[356px] max-w-[calc(100vw-1.5rem)]"
+      className="temple-chat-panel rounded-2xl bg-stone-950/90 border border-amber-500/40 shadow-[0_12px_40px_rgba(0,0,0,0.75)] backdrop-blur-md text-amber-50 flex flex-col overflow-hidden pointer-events-auto"
     >
       {/* Thanh tiêu đề & Nút chuyển Tab */}
-      <div className="px-3 pt-2.5 pb-2 bg-stone-900/90 border-b border-amber-500/25 flex items-center justify-between gap-2">
-        <div className="flex items-center gap-1 bg-stone-950/80 p-1 rounded-xl border border-amber-500/20 flex-1">
+      <div className="temple-panel-header shrink-0 px-3 pt-2.5 pb-2 bg-stone-900/90 border-b border-amber-500/25 flex items-center justify-between gap-2">
+        <div className="min-w-0 flex items-center gap-1 bg-stone-950/80 p-1 rounded-xl border border-amber-500/20 flex-1">
           <button
             type="button"
             onClick={() => setActiveTab('chat')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-bold transition ${
+            className={`min-w-0 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-bold transition ${
               activeTab === 'chat'
                 ? 'bg-amber-500/25 text-amber-200 border border-amber-400/40 shadow-sm'
                 : 'text-amber-200/65 hover:text-amber-100'
@@ -187,7 +206,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           <button
             type="button"
             onClick={() => setActiveTab('online')}
-            className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-bold transition ${
+            className={`min-w-0 flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2.5 rounded-lg text-xs font-bold transition ${
               activeTab === 'online'
                 ? 'bg-amber-500/25 text-amber-200 border border-amber-400/40 shadow-sm'
                 : 'text-amber-200/65 hover:text-amber-100'
@@ -200,10 +219,11 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
         <button
           type="button"
+          data-panel-close
           onClick={() => setIsOpen(false)}
           title="Thu gọn khung trò chuyện"
           aria-label="Thu gọn khung trò chuyện"
-          className="w-8 h-8 rounded-xl bg-stone-950/75 hover:bg-stone-800 border border-amber-500/25 flex items-center justify-center text-amber-200/80 hover:text-amber-100 transition shrink-0"
+          className="min-w-11 min-h-11 rounded-xl bg-stone-950/75 hover:bg-stone-800 border border-amber-500/25 flex items-center justify-center text-amber-200/80 hover:text-amber-100 transition shrink-0"
         >
           <ChevronDown className="w-4 h-4" />
         </button>
@@ -211,9 +231,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
 
       {/* Nội dung Tab 1: Trò Chuyện Sân Chùa */}
       {activeTab === 'chat' ? (
-        <div className="flex flex-col h-[310px] sm:h-[340px]">
+        <div className="temple-chat-content flex min-h-0 flex-col h-[310px] sm:h-[340px]">
           {/* Danh sách tin nhắn */}
-          <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-2 scrollbar-thin">
+          <div className="min-h-0 flex-1 overflow-y-auto touch-pan-y overscroll-contain px-3 py-2.5 space-y-2 scrollbar-thin">
             {messages.length === 0 ? (
               <div className="h-full flex flex-col items-center justify-center text-center px-4 text-amber-200/60 text-xs">
                 <Sparkles className="w-5 h-5 text-amber-400/70 mb-1.5" />
@@ -308,10 +328,10 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
             <div ref={messagesEndRef} />
           </div>
 
-          {sendError && <p role="alert" className="border-t border-red-500/25 bg-red-950/60 px-3 py-2 text-[11px] text-red-200">{sendError}</p>}
+          {sendError && <p role="alert" className="shrink-0 border-t border-red-500/25 bg-red-950/60 px-3 py-2 text-[11px] text-red-200">{sendError}</p>}
 
           {/* Các chip câu chúc nhanh 1 chạm */}
-          <div className="px-2.5 py-1.5 bg-stone-900/70 border-t border-amber-500/15 flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          <div className="shrink-0 px-2.5 py-1.5 bg-stone-900/70 border-t border-amber-500/15 flex items-center gap-1.5 overflow-x-auto touch-pan-x overscroll-contain no-scrollbar">
             {QUICK_BLESSINGS.map((chip) => (
               <button
                 key={chip}
@@ -328,7 +348,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           {/* Ô nhập tin nhắn + Nút gửi */}
           <form
             onSubmit={handleFormSubmit}
-            className="p-2 bg-stone-900/95 border-t border-amber-500/25 flex items-center gap-1.5"
+            className="shrink-0 p-2 bg-stone-900/95 border-t border-amber-500/25 flex items-center gap-1.5"
           >
             <input
               type="text"
@@ -355,9 +375,9 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
         </div>
       ) : (
         /* Nội dung Tab 2: Đạo Hữu Trong Chùa */
-        <div className="flex flex-col h-[310px] sm:h-[340px]">
+        <div className="temple-chat-content flex min-h-0 flex-col h-[310px] sm:h-[340px]">
           {/* Công tắc bật/tắt Sư Huynh NPC đi kinh hành */}
-          <div className="px-3 py-2 bg-stone-900/70 border-b border-amber-500/20 flex items-center justify-between gap-2">
+          <div className="shrink-0 px-3 py-2 bg-stone-900/70 border-b border-amber-500/20 flex items-center justify-between gap-2">
             <span className="text-xs font-medium text-amber-100/90 leading-snug">
               Hiển thị các Sư Huynh NPC đi kinh hành
             </span>
@@ -379,7 +399,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
 
           {/* Danh sách bản thân + các onlineMonks */}
-          <div className="flex-1 overflow-y-auto px-3 py-2.5 space-y-2">
+          <div className="min-h-0 flex-1 overflow-y-auto touch-pan-y overscroll-contain px-3 py-2.5 space-y-2">
             {/* Thẻ Bản Thân (Bạn) */}
             <div className="p-2.5 rounded-xl bg-amber-500/15 border border-amber-400/45 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -445,7 +465,7 @@ export const ChatPanel: React.FC<ChatPanelProps> = ({
           </div>
         </div>
       )}
-    </aside>
+    </ResponsivePanel>
   );
 };
 

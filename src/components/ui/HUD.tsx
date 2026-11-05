@@ -26,6 +26,8 @@ import {
 import type { MultiplayerConnectionStatus } from '../../services/multiplayerService';
 import { connectionPresentation } from '../../utils/multiplayerPresentation';
 import { MultiplayerStatus } from './MultiplayerStatus';
+import { ResponsivePanel } from './ResponsivePanel';
+import { useCompactLayout } from '../../hooks/useCompactLayout';
 import type {
   GraphicsQuality,
   InteractionZoneConfig,
@@ -58,6 +60,7 @@ export interface HUDProps {
   onTriggerZoneActivity: (zone: InteractionZoneConfig) => void;
   onTeleportToZone: (zone: InteractionZoneConfig) => void;
   onQuickActionState: (state: MonkActionState) => void;
+  onMobilePanelChange?: (open: boolean) => void;
 }
 
 const TIME_OPTIONS: Array<{
@@ -142,10 +145,17 @@ export const HUD: React.FC<HUDProps> = memo(({
   onTriggerZoneActivity,
   onTeleportToZone,
   onQuickActionState,
+  onMobilePanelChange,
 }) => {
+  const compact = useCompactLayout();
   const [isMapOpen, setIsMapOpen] = useState<boolean>(false);
   const [isQualityMenuOpen, setIsQualityMenuOpen] = useState<boolean>(false);
-  const [areControlsVisible, setAreControlsVisible] = useState(true);
+  const [areControlsVisible, setAreControlsVisible] = useState(() => !compact);
+  useEffect(() => {
+    setAreControlsVisible(!compact);
+    setIsMapOpen(false);
+    setIsQualityMenuOpen(false);
+  }, [compact]);
   const fps = useFpsCounter();
 
   const robeInfo =
@@ -158,9 +168,9 @@ export const HUD: React.FC<HUDProps> = memo(({
   return (
     <>
       {/* Thanh Trạng Thái Phía Trên (Top Bar) */}
-      <header className="fixed top-0 inset-x-0 z-30 p-2.5 sm:p-4 pointer-events-none flex flex-col lg:flex-row items-stretch lg:items-start justify-between gap-2.5">
+      <header className="temple-header fixed top-0 inset-x-0 z-30 p-2.5 sm:p-4 pointer-events-none flex flex-col lg:flex-row items-stretch lg:items-start justify-between gap-2.5">
         {/* Cụm Bên Trái: Hồ sơ Chú Tiểu, Công Đức, Đạo Hữu Online, Tọa Độ, FPS */}
-        <div className="pointer-events-auto lg:max-w-[50%] flex flex-wrap items-center gap-2 bg-stone-950/85 border border-amber-500/35 rounded-2xl px-3.5 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-md">
+        <div className="temple-status-card pointer-events-auto lg:max-w-[50%] flex flex-wrap items-center gap-2 bg-stone-950/85 border border-amber-500/35 rounded-2xl px-3.5 py-2 shadow-[0_8px_28px_rgba(0,0,0,0.6)] backdrop-blur-md">
           {/* Huy hiệu màu áo cà sa + Pháp danh + @username */}
           <div className="flex items-center gap-2.5 pr-2 border-r border-amber-500/20">
             <span
@@ -202,7 +212,7 @@ export const HUD: React.FC<HUDProps> = memo(({
 
           {/* Tọa độ (X, Z) */}
           <div
-            className="px-2.5 py-1 rounded-xl bg-stone-900/90 border border-amber-500/20 text-[11px] font-mono text-amber-200/80 flex items-center gap-1"
+            className="temple-coordinate px-2.5 py-1 rounded-xl bg-stone-900/90 border border-amber-500/20 text-[11px] font-mono text-amber-200/80 flex items-center gap-1"
             title="Tọa độ hiện tại trong khuôn viên sân chùa (X, Z)"
           >
             <MapPin className="w-3 h-3 text-amber-400 shrink-0" />
@@ -213,7 +223,7 @@ export const HUD: React.FC<HUDProps> = memo(({
 
           {/* Bộ đếm FPS thời gian thực */}
           <div
-            className="px-2.5 py-1 rounded-xl bg-stone-900/90 border border-amber-500/20 text-[11px] font-mono flex items-center gap-1.5"
+            className="temple-fps px-2.5 py-1 rounded-xl bg-stone-900/90 border border-amber-500/20 text-[11px] font-mono flex items-center gap-1.5"
             title="Tốc độ khung hình thời gian thực (Frames Per Second)"
           >
             <Activity
@@ -241,7 +251,7 @@ export const HUD: React.FC<HUDProps> = memo(({
         </div>
 
         {/* Cụm Bên Phải: Thời gian, Đồ họa, Âm thanh, Bản đồ dịch chuyển, Camera, Đổi Pháp danh, Đăng xuất */}
-        <div className="pointer-events-auto flex min-w-0 flex-col items-end gap-1.5 lg:max-w-[50%]">
+        <div className="temple-control-group pointer-events-auto flex min-w-0 flex-col items-end gap-1.5 lg:max-w-[50%]">
           <button
             type="button"
             aria-label={areControlsVisible ? 'Ẩn giao diện tương tác' : 'Hiện giao diện tương tác'}
@@ -252,15 +262,15 @@ export const HUD: React.FC<HUDProps> = memo(({
               setIsMapOpen(false);
               setIsQualityMenuOpen(false);
             }}
-            className="min-h-11 px-3 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
+            className="temple-control-toggle min-h-11 px-3 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-300"
           >
             {areControlsVisible ? <EyeOff className="w-4 h-4 text-amber-300" /> : <Eye className="w-4 h-4 text-amber-300" />}
-            <span>{areControlsVisible ? 'Ẩn giao diện' : 'Hiện giao diện'}</span>
+            <span>{compact ? (areControlsVisible ? 'Ẩn menu' : 'Menu') : (areControlsVisible ? 'Ẩn giao diện' : 'Hiện giao diện')}</span>
           </button>
           <div
             id="hud-interaction-controls"
             hidden={!areControlsVisible}
-            className={`${areControlsVisible ? 'flex' : 'hidden'} max-w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2`}
+            className={`temple-controls ${areControlsVisible ? 'flex' : 'hidden'} max-w-full flex-wrap items-center justify-end gap-1.5 sm:gap-2`}
           >
             {/* Bộ chuyển đổi thời gian: Ban Ngày / Hoàng Hôn / Đêm Trăng */}
             <div className="flex items-center bg-stone-950/85 border border-amber-500/35 rounded-xl p-1 backdrop-blur-md shadow">
@@ -291,7 +301,9 @@ export const HUD: React.FC<HUDProps> = memo(({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setIsQualityMenuOpen((prev) => !prev)}
+                onClick={() => { setIsQualityMenuOpen((prev) => !prev); setIsMapOpen(false); }}
+                aria-expanded={isQualityMenuOpen}
+                aria-haspopup={compact ? 'dialog' : undefined}
                 title="Cài đặt chất lượng đồ họa (Cao / Cân bằng / Tiết kiệm pin)"
                 className="px-2.5 py-2 rounded-xl bg-stone-950/85 hover:bg-stone-900 border border-amber-500/35 text-xs font-semibold text-amber-100 flex items-center gap-1.5 backdrop-blur-md shadow transition"
               >
@@ -305,11 +317,14 @@ export const HUD: React.FC<HUDProps> = memo(({
                 </span>
               </button>
               {isQualityMenuOpen && (
-                <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-2xl backdrop-blur-xl p-2.5 text-amber-50 z-50">
-                  <div className="text-[11px] font-bold uppercase tracking-wider text-amber-300 px-2 py-1 border-b border-amber-500/20 mb-1.5 flex items-center justify-between">
+                <ResponsivePanel label="Chất Lượng Đồ Họa" onClose={() => setIsQualityMenuOpen(false)} onMobileOpenChange={onMobilePanelChange}
+                  desktopClassName="absolute right-0 mt-2 w-64 z-50"
+                  className="rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-2xl backdrop-blur-xl p-2.5 text-amber-50">
+                  <div className="temple-panel-header text-[11px] font-bold uppercase tracking-wider text-amber-300 px-2 py-1 border-b border-amber-500/20 mb-1.5 flex items-center justify-between">
                     <span>Chất Lượng Đồ Họa</span>
                     <button
                       type="button"
+                      data-panel-close
                       onClick={() => setIsQualityMenuOpen(false)}
                       className="text-[10px] text-amber-400 hover:text-amber-200"
                     >
@@ -342,7 +357,7 @@ export const HUD: React.FC<HUDProps> = memo(({
                       </button>
                     );
                   })}
-                </div>
+                </ResponsivePanel>
               )}
             </div>
 
@@ -393,7 +408,9 @@ export const HUD: React.FC<HUDProps> = memo(({
             <div className="relative">
               <button
                 type="button"
-                onClick={() => setIsMapOpen((prev) => !prev)}
+                onClick={() => { setIsMapOpen((prev) => !prev); setIsQualityMenuOpen(false); }}
+                aria-expanded={isMapOpen}
+                aria-haspopup={compact ? 'dialog' : undefined}
                 className={`px-3 py-2 rounded-xl border text-xs font-bold flex items-center gap-1.5 backdrop-blur-md shadow transition ${
                   isMapOpen
                     ? 'bg-amber-500 text-stone-950 border-amber-300'
@@ -405,8 +422,10 @@ export const HUD: React.FC<HUDProps> = memo(({
               </button>
 
               {isMapOpen && (
-                <div className="absolute right-0 mt-2 w-80 sm:w-96 rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-[0_16px_48px_rgba(0,0,0,0.85)] backdrop-blur-xl p-3.5 text-amber-50 z-40">
-                  <div className="flex items-center justify-between pb-2 mb-2.5 border-b border-amber-500/20">
+                <ResponsivePanel label="Bản Đồ & Dịch Chuyển Nhanh" onClose={() => setIsMapOpen(false)} onMobileOpenChange={onMobilePanelChange}
+                  desktopClassName="absolute right-0 mt-2 w-80 sm:w-96 z-40"
+                  className="rounded-2xl bg-stone-950/95 border border-amber-500/45 shadow-[0_16px_48px_rgba(0,0,0,0.85)] backdrop-blur-xl p-3.5 text-amber-50">
+                  <div className="temple-panel-header flex items-center justify-between pb-2 mb-2.5 border-b border-amber-500/20">
                     <div>
                       <h3 className="text-xs font-bold uppercase tracking-wider text-amber-300">
                         Bản Đồ 5 Khu Vực Tâm Linh
@@ -417,6 +436,7 @@ export const HUD: React.FC<HUDProps> = memo(({
                     </div>
                     <button
                       type="button"
+                      data-panel-close
                       onClick={() => setIsMapOpen(false)}
                       className="text-xs text-amber-300 hover:text-amber-100 px-2 py-0.5 rounded-lg bg-stone-900 border border-amber-500/25"
                     >
@@ -494,7 +514,7 @@ export const HUD: React.FC<HUDProps> = memo(({
                       })}
                     </div>
                   </div>
-                </div>
+                </ResponsivePanel>
               )}
             </div>
 
@@ -549,9 +569,9 @@ export const HUD: React.FC<HUDProps> = memo(({
 
       {/* Thẻ Tương Tác Khu Vực Nổi Bật Ở Chính Giữa Phía Dưới (Bottom-Center Prompt) */}
       {activeZone !== null && (
-        <div className="fixed bottom-5 left-1/2 -translate-x-1/2 z-30 w-[92vw] max-w-md pointer-events-auto">
-          <div className="rounded-3xl bg-stone-950/92 border-2 border-amber-400/65 shadow-[0_0_40px_rgba(245,158,11,0.35)] backdrop-blur-md p-4 text-amber-50 flex flex-col sm:flex-row items-center justify-between gap-3">
-            <div className="text-center sm:text-left min-w-0 flex-1">
+        <div className="temple-activity-prompt fixed bottom-5 left-1/2 -translate-x-1/2 z-30 w-[92vw] max-w-md pointer-events-auto">
+          <div className="temple-activity-card rounded-3xl bg-stone-950/92 border-2 border-amber-400/65 shadow-[0_0_40px_rgba(245,158,11,0.35)] backdrop-blur-md p-4 text-amber-50 flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="temple-activity-copy text-center sm:text-left min-w-0 flex-1">
               <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/40 text-[11px] font-bold text-amber-300 mb-1">
                 <Sparkles className="w-3 h-3" />
                 <span>+{activeZone.meritReward} Công Đức</span>

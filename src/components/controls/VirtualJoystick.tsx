@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from 'lucide-react';
+import { useCompactLayout } from '../../hooks/useCompactLayout';
 import type { JoystickVector } from '../../types/game';
 
 export interface VirtualJoystickProps {
@@ -15,8 +16,11 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
   size = 132,
   disabled = false,
 }) => {
+  const isCompactLayout = useCompactLayout();
+  const actualSize = isCompactLayout ? Math.min(size, 104) : size;
   const baseRef = useRef<HTMLDivElement | null>(null);
   const activePointerIdRef = useRef<number | null>(null);
+  const previousSizeRef = useRef(actualSize);
 
   const [isDragging, setIsDragging] = useState<boolean>(false);
   const [dragOffset, setDragOffset] = useState<{ x: number; y: number }>({
@@ -24,8 +28,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
     y: 0,
   });
 
-  const knobSize = Math.round(size * 0.42);
-  const maxRadius = Math.max(24, Math.round((size - knobSize) / 2 - 4));
+  const knobSize = Math.round(actualSize * 0.42);
+  const maxRadius = Math.max(24, Math.round((actualSize - knobSize) / 2 - 4));
 
   const updateFromClientPoint = useCallback(
     (clientX: number, clientY: number) => {
@@ -78,6 +82,25 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
       releaseJoystick();
     }
   }, [disabled, isDragging, releaseJoystick]);
+
+  useEffect(() => {
+    const releaseAfterResize = () => {
+      if (activePointerIdRef.current !== null) releaseJoystick();
+    };
+    window.addEventListener('resize', releaseAfterResize);
+    window.addEventListener('orientationchange', releaseAfterResize);
+    return () => {
+      window.removeEventListener('resize', releaseAfterResize);
+      window.removeEventListener('orientationchange', releaseAfterResize);
+    };
+  }, [releaseJoystick]);
+
+  useEffect(() => {
+    if (previousSizeRef.current !== actualSize) {
+      previousSizeRef.current = actualSize;
+      if (activePointerIdRef.current !== null) releaseJoystick();
+    }
+  }, [actualSize, releaseJoystick]);
 
   const handlePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (disabled) return;
@@ -136,7 +159,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
 
   return (
     <div
-      className={`fixed bottom-5 left-5 sm:bottom-6 sm:left-6 z-30 flex flex-col items-center gap-1.5 select-none pointer-events-auto ${
+      className={`temple-joystick fixed bottom-5 left-5 sm:bottom-6 sm:left-6 z-30 flex flex-col items-center gap-1.5 select-none pointer-events-auto ${
         disabled ? 'opacity-45 pointer-events-none' : 'opacity-100'
       }`}
       style={{ touchAction: 'none' }}
@@ -146,6 +169,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         ref={baseRef}
         role="slider"
         aria-label="Cần gạt di chuyển Chú Tiểu"
+        aria-disabled={disabled}
         aria-valuetext={`X: ${vector.x.toFixed(2)}, Y: ${vector.y.toFixed(2)}`}
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -154,8 +178,8 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
         onLostPointerCapture={releaseJoystick}
         onContextMenu={(e) => e.preventDefault()}
         style={{
-          width: `${size}px`,
-          height: `${size}px`,
+          width: `${actualSize}px`,
+          height: `${actualSize}px`,
           touchAction: 'none',
         }}
         className={`relative rounded-full flex items-center justify-center cursor-grab active:cursor-grabbing transition-shadow duration-200 bg-stone-950/80 backdrop-blur-md border-2 ${
@@ -222,7 +246,7 @@ export const VirtualJoystick: React.FC<VirtualJoystickProps> = ({
       </div>
 
       {/* Dòng chú thích hướng dẫn phía dưới */}
-      <div className="px-2.5 py-0.5 rounded-full bg-stone-950/80 border border-amber-500/30 backdrop-blur-sm shadow text-[11px] font-medium text-amber-200/85 tracking-wide whitespace-nowrap pointer-events-none">
+      <div className="temple-joystick-caption px-2.5 py-0.5 rounded-full bg-stone-950/80 border border-amber-500/30 backdrop-blur-sm shadow text-[11px] font-medium text-amber-200/85 tracking-wide whitespace-nowrap pointer-events-none">
         Kéo chuột / Chạm hoặc WASD
       </div>
     </div>

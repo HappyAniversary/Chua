@@ -71,3 +71,107 @@
 ::-webkit-scrollbar-thumb:hover {
   background: rgba(245, 158, 11, 0.8);
 }
+
+/* Mobile panels live above the game controls, rather than overlapping as popovers. */
+.temple-mobile-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+  background: rgba(12, 10, 9, 0.78);
+  touch-action: none;
+}
+
+.temple-mobile-panel {
+  width: 100%;
+  max-width: 36rem;
+  max-height: 100%;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  touch-action: pan-y;
+}
+
+.temple-mobile-panel .temple-panel-header {
+  position: sticky;
+  top: -1px;
+  z-index: 1;
+  flex-shrink: 0;
+  background: #0c0a09;
+}
+
+.temple-mobile-panel button { min-height: 44px; }
+.temple-desktop-panel { max-width: calc(100vw - 24px); overflow-y: auto; overscroll-behavior: contain; touch-action: pan-y; }
+
+/* Keep in sync with COMPACT_LAYOUT_QUERY in useCompactLayout.ts. */
+@media (max-width: 1023px), (max-height: 500px) {
+  .temple-header.temple-header {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-rows: auto minmax(0, 1fr);
+    max-height: calc(100dvh - max(12px, env(safe-area-inset-bottom)) - 192px);
+    align-items: start;
+    gap: 8px;
+    padding: max(10px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) 0 max(12px, env(safe-area-inset-left));
+  }
+
+  .temple-status-card { max-width: none; min-width: 0; max-height: min(24dvh, 124px); padding: 8px 10px; gap: 6px; overflow-y: auto; touch-action: pan-y; }
+  .temple-status-card > div:first-child { min-width: 0; max-width: 100%; border-right: 0; padding-right: 0; }
+  .temple-status-card > div:first-child > div { min-width: 0; }
+  .temple-status-card > div:first-child > div > div:first-child { flex-wrap: wrap; }
+  .temple-status-card > div:first-child > div > div:first-child > span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .temple-coordinate, .temple-fps { display: none; }
+  .temple-control-group { display: contents; }
+  .temple-control-toggle { min-height: 44px; padding: 10px; align-self: start; pointer-events: auto; }
+  .temple-controls {
+    grid-column: 1 / -1;
+    width: 100%;
+    min-height: 0;
+    max-height: min(24dvh, 144px);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    touch-action: pan-y;
+    pointer-events: auto;
+  }
+  .temple-controls button { min-height: 44px; }
+
+  .temple-joystick.temple-joystick {
+    left: max(12px, env(safe-area-inset-left));
+    bottom: max(12px, env(safe-area-inset-bottom));
+    gap: 0;
+  }
+  .temple-joystick-caption { display: none; }
+
+  .temple-chat-launcher {
+    right: max(12px, env(safe-area-inset-right));
+    bottom: max(12px, env(safe-area-inset-bottom));
+  }
+  .temple-chat-launch-button { width: 56px; height: 56px; padding: 0; justify-content: center; }
+  .temple-chat-launch-label { display: none; }
+  .temple-chat-panel { overflow: hidden; }
+  .temple-chat-panel input { font-size: 16px; min-height: 44px; min-width: 0; }
+  .temple-chat-content { min-height: 0; max-height: calc(100dvh - 120px); flex-shrink: 1; }
+
+  .temple-activity-prompt {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 116px);
+    width: auto;
+    max-width: none;
+    transform: none;
+  }
+  .temple-activity-card { flex-direction: row; padding: 10px; gap: 8px; border-radius: 18px; }
+  .temple-activity-copy { text-align: left; }
+  .temple-activity-copy > p { display: none; }
+  .temple-activity-copy h2 { font-size: 12px; line-height: 1.4; }
+  .temple-activity-copy > div { font-size: 10px; margin-bottom: 2px; }
+  .temple-activity-card > button { width: auto; max-width: 50%; min-height: 44px; padding: 10px 12px; font-size: 12px; line-height: 1.4; border-radius: 12px; }
+}
+
+@media (max-height: 500px) {
+  .temple-status-card > div:first-child > div > div:last-child,
+  .temple-status-card > div:first-child > div > div:first-child > span:last-child { display: none; }
+}

@@ -104,6 +104,8 @@ export function App() {
     useState<InteractionZoneId | null>(null);
   const [bellStrikePulse, setBellStrikePulse] = useState<number>(0);
   const [woodenFishPulse, setWoodenFishPulse] = useState<number>(0);
+  const [isHudPanelBlocking, setIsHudPanelBlocking] = useState(false);
+  const [isChatPanelBlocking, setIsChatPanelBlocking] = useState(false);
 
   // Trạng thái Multiplayer thời gian thực
   const [remoteMonks, setRemoteMonks] = useState<MonkPresence[]>([]);
@@ -125,6 +127,8 @@ export function App() {
   // Bật điều khiển di chuyển khi không mở modal nhập liệu (Incense / Fortune / Setup)
   const isModalBlockingMovement =
     needsMonkSetup ||
+    isHudPanelBlocking ||
+    isChatPanelBlocking ||
     activeActivityModal === 'incense_altar' ||
     activeActivityModal === 'bodhi_tree' ||
     activeActivityModal === 'fortune_stall';
@@ -583,7 +587,7 @@ export function App() {
   }
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-stone-950 text-amber-50 select-none">
+    <div className="relative h-[100dvh] w-screen overflow-hidden bg-stone-950 text-amber-50 select-none">
       {/* 1. Màn hình Đăng nhập / Đăng ký Tài khoản & Mật khẩu */}
       {!currentProfile && <AuthModal onAuthSuccess={handleAuthSuccess} />}
 
@@ -657,6 +661,7 @@ export function App() {
             onTriggerZoneActivity={handleTriggerZoneActivity}
             onTeleportToZone={handleTeleportToZone}
             onQuickActionState={handleQuickActionState}
+            onMobilePanelChange={setIsHudPanelBlocking}
           />
 
           {/* Cần gạt ảo (Virtual Joystick) ở góc dưới bên trái cho cả PC (Mouse Drag) & Mobile (Touch) */}
@@ -675,6 +680,7 @@ export function App() {
             connectionStatus={connectionStatus}
             aiMonksEnabled={aiMonksEnabled}
             onToggleAiMonks={handleToggleAiMonks}
+            onMobilePanelChange={setIsChatPanelBlocking}
           />
 
           {/* Hoạt động 1: Dâng Hương Lễ Phật tại Chánh Điện hoặc Treo Thẻ Ước Nguyện Cây Bồ Đề */}
