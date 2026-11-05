@@ -1,59 +1,32 @@
 import * as path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import * as THREE from 'three';
-import { extractSurfaceNets } from './figures/mesher.ts';
-import { createMonkFigureSDF } from './figures/samples.ts';
-import { createBuddhaFigureSDF } from './figures/buddha.ts';
-import { createQuanAmFigureSDF } from './figures/quanam.ts';
-import { STANDARD_HUMANOID_BONES, STANDARD_SOCKETS, rigGeometryToSkinnedMesh } from './figures/skeleton.ts';
-import { addMonkFaceDetails, addStatueFaceDetails } from './figures/face-details.ts';
-import { assignStatueMaterials, countObjectTriangles, figureResolution, FIGURE_CELL_SIZES } from './figures/materials.ts';
+import { createMonkSculpt } from './figures/monk-sculpt.ts';
+import { createStatueSculpt } from './figures/statue-sculpt.ts';
+import { STANDARD_HUMANOID_BONES, STANDARD_SOCKETS } from './figures/skeleton.ts';
+import { countObjectTriangles } from './figures/materials.ts';
 import { exportObjectToGLB, updateManifest } from './figures/exporter.ts';
 import type { FigureManifestEntry } from './figures/types.ts';
 
+/** The production models use authored smooth surfaces, with the original asset IDs. */
 export async function bakeMainFigures(outputDir = path.resolve(process.env.FIGURES_OUTPUT_DIR ?? 'public/models/figures')) {
   const definitions = [
-    { id: 'sample_monk', name: 'Chú Tiểu', category: 'player' as const, factory: createMonkFigureSDF },
-    { id: 'buddha', name: 'Đức Phật Thích Ca Mâu Ni', category: 'buddha' as const, factory: createBuddhaFigureSDF },
-    { id: 'quanam', name: 'Bồ Tát Quán Thế Âm', category: 'quanam' as const, factory: createQuanAmFigureSDF },
+    { id: 'sample_monk', name: 'Chú Tiểu', category: 'player' as const },
+    { id: 'buddha', name: 'Đức Phật Thích Ca Mâu Ni', category: 'buddha' as const },
+    { id: 'quanam', name: 'Bồ Tát Quán Thế Âm', category: 'quanam' as const },
   ];
   for (const definition of definitions) {
-    const figure = definition.factory();
     const triangles: number[] = [];
-    const used = new Set<string>();
-    for (const [lod, cellSize] of FIGURE_CELL_SIZES[definition.category].entries()) {
-      const resolution = figureResolution(figure.bounds, cellSize);
-      const result = extractSurfaceNets(figure.sdf, { resolution, bounds: figure.bounds, smoothIterations: 2, smoothFactor: 0.18 });
-      let object: THREE.Object3D;
-      if (definition.category === 'player') {
-        const { skinnedMesh } = rigGeometryToSkinnedMesh(result.geometry, STANDARD_HUMANOID_BONES);
-        skinnedMesh.name = 'sample_monk';
-        (skinnedMesh.material as THREE.Material).name = 'MonkSurface';
-        addMonkFaceDetails(skinnedMesh);
-        object = skinnedMesh;
-      } else {
-        // These statues have a fixed sculpted pose; sockets are model-space anchors.
-        const group = new THREE.Group();
-        group.name = definition.id;
-        const materials = assignStatueMaterials(result.geometry);
-        const mesh = new THREE.Mesh(result.geometry, materials);
-        mesh.name = `${definition.id}_surface`;
-        group.add(mesh);
-        addStatueFaceDetails(group, definition.id === 'buddha' ? [0, 1.565, 0.012] : [0, 1.735, 0.025], 0, definition.id === 'quanam');
-        if ('sockets' in figure) {
-          for (const [name, socket] of Object.entries(figure.sockets)) {
-            const anchor = new THREE.Object3D();
-            anchor.name = name;
-            anchor.position.fromArray(socket.position);
-            group.add(anchor);
-          }
-        }
-        object = group;
-      }
-      object.traverse((obj) => {
-        if (!(obj as THREE.Mesh).isMesh) return;
-        const material = (obj as THREE.Mesh).material;
-        for (const item of Array.isArray(material) ? material : [material]) used.add(item.name);
+    const materials = new Set<string>();
+    const sockets: NonNullable<FigureManifestEntry['sockets']> = {};
+    for (const lod of [0, 1] as const) {
+      const object = definition.category === 'player' ? createMonkSculpt(lod) : createStatueSculpt(definition.category, lod);
+      object.userData.figureAssembly = 'authored-v3';
+      object.traverse((node) => {
+        if (node.name.endsWith('_socket')) sockets[node.name] = { bone: node.parent?.name ?? definition.id, position: node.position.toArray() };
+        if (!(node as THREE.Mesh).isMesh) return;
+        const material = (node as THREE.Mesh).material;
+        for (const item of Array.isArray(material) ? material : [material]) materials.add(item.name);
       });
       triangles.push(countObjectTriangles(object));
       const filename = `${definition.id}${lod ? '_lod1' : ''}.glb`;
@@ -68,10 +41,8 @@ export async function bakeMainFigures(outputDir = path.resolve(process.env.FIGUR
       ...(definition.category === 'player' ? {
         bonesCount: STANDARD_HUMANOID_BONES.length,
         sockets: Object.fromEntries(STANDARD_SOCKETS.map((s) => [s.name, { bone: s.boneName, position: s.offset }])),
-      } : 'sockets' in figure ? {
-        sockets: Object.fromEntries(Object.entries(figure.sockets).map(([name, s]) => [name, { bone: definition.id, position: s.position }])),
-      } : {}),
-      materials: [...used].sort(),
+      } : { sockets }),
+      materials: [...materials].sort(),
     };
     updateManifest(path.join(outputDir, 'manifest.json'), entry);
   }

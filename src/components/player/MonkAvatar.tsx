@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { createFigureInstance, figureAssetUrl, nextFigureLod, kasayaTrimColor } from '../../utils/figureAssets';
 import { createFigureAnimator, MONK_MALLET_ANGLE, MONK_MALLET_GRIP, MONK_MALLET_HEAD_Y, MONK_FORTUNE_ANGLE, MONK_FORTUNE_GRIP } from '../../utils/figureAnimation';
 import { FigureLoadBoundary } from '../../utils/figureLoadBoundary';
+import { useFigureLighting } from '../../utils/figureLighting';
 import { useEnvironmentQuality } from '../world/EnvironmentQuality';
 import { advanceWalkPhase, displacementIsWalking, motionDelta } from '../../utils/playerMotion';
 import { useWorldLabel } from '../../utils/useWorldLabel';
@@ -88,6 +89,7 @@ export const MonkSkinnedMeshModel: React.FC<MonkSkinnedMeshModelProps> = ({
 }) => {
   const sources = useGLTF([figureAssetUrl('/models/figures/sample_monk.glb'), figureAssetUrl('/models/figures/sample_monk_lod1.glb')]);
   const instances = useMemo(() => sources.map(({ scene }) => createFigureInstance(scene, true)), [sources]);
+  useFigureLighting(instances);
   const drivers = useMemo(() => instances.map(({ scene }) => createFigureAnimator(scene)), [instances]);
   const canonical = instances[0];
   const clonedScene = canonical.scene;
@@ -150,7 +152,6 @@ export const MonkSkinnedMeshModel: React.FC<MonkSkinnedMeshModelProps> = ({
 
   const handRSocket = socketsMap.get('hand_r_socket');
   const chestSocket = socketsMap.get('chest_socket');
-  const headSocket = socketsMap.get('head_socket');
 
   return (
     <group ref={root} dispose={null} userData={metadata}>
@@ -261,29 +262,6 @@ export const MonkSkinnedMeshModel: React.FC<MonkSkinnedMeshModelProps> = ({
         </React.Fragment>
       )}
 
-      {/* 6 chấm giới hương Ba-la-đề-mộc-xoa trên đỉnh đầu */}
-      {headSocket && (
-        <React.Fragment key="portal-precepts">
-          {createPortal(
-            <group>
-              {[
-                [-0.042, -0.024, 0.07],
-                [0, -0.017, 0.07],
-                [0.042, -0.024, 0.07],
-                [-0.042, -0.007, 0.015],
-                [0, 0, 0.015],
-                [0.042, -0.007, 0.015],
-              ].map(([dx, dy, dz], idx) => (
-                <mesh key={idx} position={[dx, dy, dz]}>
-                  <sphereGeometry args={[0.006, 8, 6]} />
-                  <meshStandardMaterial color="#ca8a04" roughness={0.7} />
-                </mesh>
-              ))}
-            </group>,
-            headSocket
-          )}
-        </React.Fragment>
-      )}
     </group>
   );
 };

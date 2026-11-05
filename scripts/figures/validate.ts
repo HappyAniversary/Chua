@@ -8,6 +8,8 @@ export interface AssetAudit {
   id: string; lod: string; bytes: number; triangles: number; bones: number;
   bodyComponents: number; boundaryEdges: number; nonmanifoldEdges: number; degenerateTriangles: number;
   errors: string[];
+  surfaceParts?: number;
+  openSurfaceParts?: number;
 }
 
 /** Weld exported material seams in model space before checking the surface topology. */
@@ -70,6 +72,9 @@ export async function validateFigureDirectory(directory: string) {
     gltf.scene.updateMatrixWorld(true);
     const audit: AssetAudit = { id: entry.id, lod, bytes: bytes.length, triangles: 0, bones: 0, bodyComponents: 0, boundaryEdges: 0, nonmanifoldEdges: 0, degenerateTriangles: 0, errors: [] };
     const surfaces: THREE.Mesh[] = [];
+    const parts = new Map<THREE.Object3D, THREE.Mesh[]>();
+    let authored = false;
+    gltf.scene.traverse((node) => { if (node.userData.figureAssembly === 'authored-v3') authored = true; });
     const sockets = new Set<string>();
     gltf.scene.traverse((object) => {
       if (object.name.endsWith('_socket')) sockets.add(object.name);
@@ -81,6 +86,12 @@ export async function validateFigureDirectory(directory: string) {
         for (let i = 0; i < attribute.array.length; i++) if (!Number.isFinite(attribute.array[i])) { audit.errors.push(`Nonfinite ${name} on ${mesh.name}`); break; }
       }
       if (geometry.index) for (let i = 0; i < geometry.index.count; i++) if (geometry.index.getX(i) >= pos.count) { audit.errors.push('Index out of bounds'); break; }
+      if (authored) {
+        let owner: THREE.Object3D | null = mesh;
+        while (owner && !owner.userData.figurePart) owner = owner.parent;
+        if (!owner) audit.errors.push(`Undeclared authored surface ${mesh.name}`);
+        else { const members = parts.get(owner) ?? []; members.push(mesh); parts.set(owner, members); }
+      }
       if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
         const skinned = mesh as THREE.SkinnedMesh;
         audit.bones = Math.max(audit.bones, skinned.skeleton.bones.length);
@@ -93,13 +104,28 @@ export async function validateFigureDirectory(directory: string) {
           if (Math.abs(sum - 1) > 1e-4) { audit.errors.push('Unnormalized skin weights'); break; }
         }
       }
-      // Facial ink is authored as separate small meshes; anatomical body is one continuous surface.
+      // Legacy SDF figures have one anatomical surface. Authored garments and
+      // facial details have explicit part inventories and are audited separately.
       if (geometry.getAttribute('_regionid')) surfaces.push(mesh);
     });
     if (!surfaces.length) audit.errors.push('Missing authored region IDs');
-    Object.assign(audit, auditSurface(surfaces));
-    if (audit.bodyComponents !== 1) audit.errors.push(`Anatomical surface has ${audit.bodyComponents} components`);
-    if (audit.boundaryEdges) audit.errors.push(`${audit.boundaryEdges} open body edges`);
+    if (authored) {
+      audit.surfaceParts = parts.size;
+      audit.openSurfaceParts = 0;
+      for (const [owner, members] of parts) {
+        const declared = owner.userData.figurePart as { closed: boolean; components: number };
+        const topology = auditSurface(members);
+        for (const field of ['bodyComponents', 'boundaryEdges', 'nonmanifoldEdges', 'degenerateTriangles'] as const) audit[field] += topology[field];
+        if (typeof declared.closed !== 'boolean' || !Number.isInteger(declared.components) || declared.components < 1) audit.errors.push(`Invalid surface declaration on ${owner.name}`);
+        if (topology.bodyComponents !== declared.components) audit.errors.push(`${owner.name}: declared ${declared.components} components, found ${topology.bodyComponents}`);
+        if (declared.closed && topology.boundaryEdges) audit.errors.push(`${owner.name}: ${topology.boundaryEdges} open edges on closed surface`);
+        if (!declared.closed) audit.openSurfaceParts++;
+      }
+    } else {
+      Object.assign(audit, auditSurface(surfaces));
+      if (audit.bodyComponents !== 1) audit.errors.push(`Anatomical surface has ${audit.bodyComponents} components`);
+      if (audit.boundaryEdges) audit.errors.push(`${audit.boundaryEdges} open body edges`);
+    }
     if (audit.nonmanifoldEdges) audit.errors.push(`${audit.nonmanifoldEdges} nonmanifold body edges`);
     if (audit.degenerateTriangles) audit.errors.push(`${audit.degenerateTriangles} degenerate body triangles`);
     if (audit.triangles !== entry.triangles[lod as 'lod0' | 'lod1']) audit.errors.push('Manifest triangle count mismatch');

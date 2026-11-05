@@ -4,6 +4,7 @@ import { Html, useGLTF } from '@react-three/drei';
 import * as THREE from 'three';
 import { createFigureInstance, figureAssetUrl, figureLodUrl, nextFigureLod } from '../../utils/figureAssets';
 import { FigureLoadBoundary } from '../../utils/figureLoadBoundary';
+import { useFigureLighting } from '../../utils/figureLighting';
 import { useEnvironmentQuality } from './EnvironmentQuality';
 import type { GraphicsQuality } from '../../types/game';
 
@@ -52,6 +53,7 @@ function LoadedFigure(props: FigureModelProps) {
     instance.setVisible(index === 0);
     return instance;
   }), [sources]);
+  useFigureLighting(instances);
   useEffect(() => () => instances.forEach((instance) => instance.dispose()), [instances]);
   useEffect(() => {
     instances.forEach((instance) => instance.meshes.forEach((mesh) => {

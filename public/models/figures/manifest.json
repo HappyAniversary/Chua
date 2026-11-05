@@ -1,6 +1,6 @@
 {
-  "version": "2.0.0",
-  "generatedAt": "2026-11-04T02:08:26.875Z",
+  "version": "3.0.0",
+  "generatedAt": "2026-11-05T02:01:11.123Z",
   "figures": {
     "sample_monk": {
       "id": "sample_monk",
@@ -11,8 +11,8 @@
         "lod1": "/models/figures/sample_monk_lod1.glb"
       },
       "triangles": {
-        "lod0": 39320,
-        "lod1": 14752
+        "lod0": 37668,
+        "lod1": 15980
       },
       "isRigged": true,
       "bonesCount": 23,
@@ -51,9 +51,12 @@
         }
       },
       "materials": [
-        "FacialInk",
-        "MonkSurface",
-        "Mouth"
+        "EarAndLips",
+        "EyeCatchlight",
+        "EyeDarkBrown",
+        "EyeIvory",
+        "MonkTailoredSurface",
+        "WarmSkinDetails"
       ]
     },
     "buddha": {
@@ -65,8 +68,8 @@
         "lod1": "/models/figures/buddha_lod1.glb"
       },
       "triangles": {
-        "lod0": 36464,
-        "lod1": 13628
+        "lod0": 43848,
+        "lod1": 15376
       },
       "isRigged": false,
       "sockets": {
@@ -120,11 +123,16 @@
         }
       },
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures"
+        "AntiqueGold",
+        "AntiqueGoldEarRelief",
+        "BlueBlackCurls",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "GoldPetalRelief",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases"
       ]
     },
     "quanam": {
@@ -136,8 +144,8 @@
         "lod1": "/models/figures/quanam_lod1.glb"
       },
       "triangles": {
-        "lod0": 35376,
-        "lod1": 13088
+        "lod0": 38056,
+        "lod1": 13888
       },
       "isRigged": false,
       "sockets": {
@@ -183,12 +191,16 @@
         }
       },
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "SculptedFeatures",
-        "Stone",
-        "WhiteSilk"
+        "AntiqueGold",
+        "IvoryDrapery",
+        "JadeAccents",
+        "PaleStonePlinth",
+        "PorcelainFeatures",
+        "PorcelainLips",
+        "PorcelainPetalRelief",
+        "RaisedGoldBorders",
+        "WarmPorcelain",
+        "WarmPorcelainEarRelief"
       ]
     },
     "arhat_01": {
@@ -200,17 +212,22 @@
         "lod1": "/models/figures/arhats/arhat_01_lod1.glb"
       },
       "triangles": {
-        "lod0": 16784,
-        "lod1": 8540
+        "lod0": 25448,
+        "lod1": 8896
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "JadeAccents",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief",
+        "WarmPorcelain"
       ]
     },
     "arhat_02": {
@@ -222,20 +239,22 @@
         "lod1": "/models/figures/arhats/arhat_02_lod1.glb"
       },
       "triangles": {
-        "lod0": 18692,
-        "lod1": 10520
+        "lod0": 31864,
+        "lod1": 11436
       },
       "isRigged": false,
       "materials": [
-        "AnimalEar",
-        "AnimalFeatures",
-        "AnimalMuzzle",
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AnimalBronze",
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_03": {
@@ -247,17 +266,23 @@
         "lod1": "/models/figures/arhats/arhat_03_lod1.glb"
       },
       "triangles": {
-        "lod0": 16468,
-        "lod1": 8412
+        "lod0": 31704,
+        "lod1": 11824
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "GoldPetalRelief",
+        "PatinatedBowl",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_04": {
@@ -269,17 +294,21 @@
         "lod1": "/models/figures/arhats/arhat_04_lod1.glb"
       },
       "triangles": {
-        "lod0": 15664,
-        "lod1": 8104
+        "lod0": 27288,
+        "lod1": 9712
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_05": {
@@ -291,17 +320,23 @@
         "lod1": "/models/figures/arhats/arhat_05_lod1.glb"
       },
       "triangles": {
-        "lod0": 16236,
-        "lod1": 8260
+        "lod0": 31096,
+        "lod1": 11560
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "GoldPetalRelief",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief",
+        "WarmPorcelain"
       ]
     },
     "arhat_06": {
@@ -313,17 +348,21 @@
         "lod1": "/models/figures/arhats/arhat_06_lod1.glb"
       },
       "triangles": {
-        "lod0": 15520,
-        "lod1": 8024
+        "lod0": 28344,
+        "lod1": 10040
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_07": {
@@ -335,17 +374,22 @@
         "lod1": "/models/figures/arhats/arhat_07_lod1.glb"
       },
       "triangles": {
-        "lod0": 16852,
-        "lod1": 8532
+        "lod0": 30024,
+        "lod1": 11408
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "GoldPetalRelief",
+        "PolishedPrayerBeads",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_08": {
@@ -357,17 +401,21 @@
         "lod1": "/models/figures/arhats/arhat_08_lod1.glb"
       },
       "triangles": {
-        "lod0": 16976,
-        "lod1": 8736
+        "lod0": 30040,
+        "lod1": 10732
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedBamboo",
+        "CarvedPlinth",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_09": {
@@ -379,17 +427,20 @@
         "lod1": "/models/figures/arhats/arhat_09_lod1.glb"
       },
       "triangles": {
-        "lod0": 17528,
-        "lod1": 8740
+        "lod0": 26584,
+        "lod1": 9172
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_10": {
@@ -401,17 +452,22 @@
         "lod1": "/models/figures/arhats/arhat_10_lod1.glb"
       },
       "triangles": {
-        "lod0": 18216,
-        "lod1": 9052
+        "lod0": 29464,
+        "lod1": 10468
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "JadeAccents",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_11": {
@@ -423,18 +479,22 @@
         "lod1": "/models/figures/arhats/arhat_11_lod1.glb"
       },
       "triangles": {
-        "lod0": 16448,
-        "lod1": 8436
+        "lod0": 31120,
+        "lod1": 11680
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "PagodaRoofGold",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "GoldPetalRelief",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_12": {
@@ -446,17 +506,23 @@
         "lod1": "/models/figures/arhats/arhat_12_lod1.glb"
       },
       "triangles": {
-        "lod0": 17128,
-        "lod1": 8508
+        "lod0": 31168,
+        "lod1": 11072
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "ElephantIvory",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief",
+        "WarmPorcelain"
       ]
     },
     "arhat_13": {
@@ -468,21 +534,22 @@
         "lod1": "/models/figures/arhats/arhat_13_lod1.glb"
       },
       "triangles": {
-        "lod0": 18412,
-        "lod1": 10356
+        "lod0": 32632,
+        "lod1": 11892
       },
       "isRigged": false,
       "materials": [
-        "AnimalEar",
-        "AnimalFeatures",
-        "AnimalMuzzle",
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "LionMane",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AnimalBronze",
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_14": {
@@ -494,17 +561,21 @@
         "lod1": "/models/figures/arhats/arhat_14_lod1.glb"
       },
       "triangles": {
-        "lod0": 16640,
-        "lod1": 8316
+        "lod0": 27288,
+        "lod1": 9712
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_15": {
@@ -516,17 +587,23 @@
         "lod1": "/models/figures/arhats/arhat_15_lod1.glb"
       },
       "triangles": {
-        "lod0": 16852,
-        "lod1": 8560
+        "lod0": 35808,
+        "lod1": 12904
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AnimalBronze",
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedBamboo",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_16": {
@@ -538,17 +615,20 @@
         "lod1": "/models/figures/arhats/arhat_16_lod1.glb"
       },
       "triangles": {
-        "lod0": 17052,
-        "lod1": 8608
+        "lod0": 24328,
+        "lod1": 8428
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_17": {
@@ -560,17 +640,22 @@
         "lod1": "/models/figures/arhats/arhat_17_lod1.glb"
       },
       "triangles": {
-        "lod0": 16716,
-        "lod1": 8464
+        "lod0": 30552,
+        "lod1": 11344
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "GoldPetalRelief",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     },
     "arhat_18": {
@@ -582,17 +667,23 @@
         "lod1": "/models/figures/arhats/arhat_18_lod1.glb"
       },
       "triangles": {
-        "lod0": 16420,
-        "lod1": 8300
+        "lod0": 34848,
+        "lod1": 13040
       },
       "isRigged": false,
       "materials": [
-        "Gold",
-        "Hair",
-        "KasayaTrim",
-        "Robe",
-        "SculptedFeatures",
-        "Stone"
+        "AntiqueGold",
+        "ArhatDrapery",
+        "BronzeLips",
+        "CarvedPlinth",
+        "DraperyFoldHighlights",
+        "GoldPetalRelief",
+        "PolishedPrayerBeads",
+        "RaisedGoldBorders",
+        "SaffronDrapery",
+        "SculptedCreases",
+        "WarmBronze",
+        "WarmBronzeEarRelief"
       ]
     }
   }

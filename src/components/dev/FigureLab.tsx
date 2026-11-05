@@ -8,6 +8,7 @@ import type { MonkActionState, RobeColor } from '../../types/game';
 import { MonkSkinnedMeshModel, MonkWoodenFishProp } from '../player/MonkAvatar';
 import { createFigureInstance, figureAssetUrl, kasayaTrimColor } from '../../utils/figureAssets';
 import { FigureLoadBoundary } from '../../utils/figureLoadBoundary';
+import { useFigureLighting } from '../../utils/figureLighting';
 
 interface FigureLabProps { onBackToGame: () => void }
 type Stats = { vertices: number; triangles: number; bones: number };
@@ -32,6 +33,8 @@ function StatueViewer({ modelUrl, wireframe, showSockets, showBounds, onStatsLoa
 }) {
   const { scene } = useGLTF(figureAssetUrl(modelUrl));
   const instance = useMemo(() => createFigureInstance(scene), [scene]);
+  const instances = useMemo(() => [instance], [instance]);
+  useFigureLighting(instances);
   const helper = useMemo(() => showBounds ? new THREE.Box3Helper(instance.bounds, 0x38bdf8) : null, [instance, showBounds]);
   useEffect(() => () => instance.dispose(), [instance]);
   useEffect(() => () => {
@@ -41,6 +44,7 @@ function StatueViewer({ modelUrl, wireframe, showSockets, showBounds, onStatsLoa
   }, [helper]);
   useEffect(() => { onStatsLoaded(instance.stats); }, [instance, onStatsLoaded]);
   useEffect(() => {
+    instance.meshes.forEach((mesh) => { mesh.castShadow = true; mesh.receiveShadow = true; });
     instance.materials.forEach((material) => {
       if (material instanceof THREE.MeshStandardMaterial) material.wireframe = wireframe;
     });
@@ -84,6 +88,7 @@ export const FigureLab: React.FC<FigureLabProps> = ({ onBackToGame }) => {
   const [robeColor, setRobeColor] = useState<RobeColor>('#d97706');
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [reload, setReload] = useState(0);
+  const [panelOpen, setPanelOpen] = useState(false);
   useEffect(() => {
     let active = true;
     setManifestError(false);
@@ -108,12 +113,17 @@ export const FigureLab: React.FC<FigureLabProps> = ({ onBackToGame }) => {
       <div className="flex items-center gap-3"><button type="button" onClick={onBackToGame} className="px-3 py-2 rounded-xl bg-amber-500/20 text-amber-200 text-xs flex items-center gap-1"><ArrowLeft className="w-4 h-4" />Về chùa</button>
         <div><h1 className="text-sm font-bold">Xưởng model 3D</h1><p className="text-[11px] text-amber-200/60">{selectedId} · LOD{lod} · {stats.bones} xương</p></div></div>
       <div className="hidden sm:flex items-center gap-2 text-xs font-mono"><Layers className="w-4 h-4" />{stats.triangles.toLocaleString()} tris · {stats.vertices.toLocaleString()} verts</div>
+      <button type="button" className="sm:hidden rounded-lg bg-amber-500/20 px-3 py-2 text-xs text-amber-200" aria-expanded={panelOpen} aria-controls="figure-controls" onClick={() => setPanelOpen((open) => !open)}>Tùy chỉnh</button>
     </header>
-    <Canvas camera={{ position: [0, 0.35, 3.8], fov: 45 }}>
-      <color attach="background" args={['#292524']} />
-      <ambientLight intensity={0.9} /><directionalLight position={[4, 6, 5]} intensity={2.2} /><directionalLight position={[-4, 3, -3]} intensity={0.85} color="#e3edff" />
-      <gridHelper args={[6, 12, '#a8a29e', '#44403c']} position={[0, -0.91, 0]} />
-      <axesHelper args={[0.35]} position={[0, -0.9, 0]} />
+    <Canvas shadows camera={{ position: [0, 0.25, 3.8], fov: 38 }}>
+      <color attach="background" args={['#e8e1d5']} />
+      <ambientLight intensity={0.45} />
+      <hemisphereLight args={['#fff8ea', '#9c8873', 1.1]} />
+      <directionalLight castShadow position={[3, 5, 4]} intensity={2.4} shadow-mapSize={[1024, 1024]} shadow-normalBias={0.025} shadow-camera-left={-3} shadow-camera-right={3} shadow-camera-top={3} shadow-camera-bottom={-3} />
+      <directionalLight position={[-4, 3, -3]} intensity={0.8} color="#e3edff" />
+      <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[0, -0.915, 0]}><planeGeometry args={[200, 200]} /><meshStandardMaterial color="#d9cebc" roughness={0.95} /></mesh>
+      {wireframe && <gridHelper args={[6, 12, '#a8a29e', '#b9ad9a']} position={[0, -0.91, 0]} />}
+      {showSockets && <axesHelper args={[0.35]} position={[0, -0.9, 0]} />}
       <FigureLoadBoundary key={reload} resetKey={resetKey} fallback={<LabPlaceholder failed />}>
         <Suspense fallback={<LabPlaceholder />}>
           {isAvatar ? <AvatarViewer action={action} lod={lod} robeColor={robeColor} wireframe={wireframe} showSkeleton={showSkeleton} showSockets={showSockets} onStatsLoaded={setStats} />
@@ -122,7 +132,7 @@ export const FigureLab: React.FC<FigureLabProps> = ({ onBackToGame }) => {
       </FigureLoadBoundary>
       <OrbitControls target={[0, 0.05, 0]} minDistance={0.8} maxDistance={8} />
     </Canvas>
-    <aside className="absolute top-20 right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl bg-stone-950/90 border border-amber-500/30 p-3 space-y-3">
+    <aside id="figure-controls" className={`${panelOpen ? 'block' : 'hidden sm:block'} absolute top-20 right-3 z-20 w-64 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-6rem)] overflow-y-auto rounded-2xl bg-stone-950/90 border border-amber-500/30 p-3 space-y-3`}>
       <label className="text-xs block">Model<select aria-label="Chọn model" value={selectedId} onChange={(event) => setSelectedId(event.target.value)} className="block mt-1 w-full bg-stone-900 border border-stone-700 rounded p-2 text-xs">
         {manifest ? Object.values(manifest.figures).map((figure) => <option key={figure.id} value={figure.id}>{figure.name}</option>) : <option value="sample_monk">Nhân vật game</option>}
       </select></label>
@@ -139,7 +149,7 @@ export const FigureLab: React.FC<FigureLabProps> = ({ onBackToGame }) => {
         <div className="border-t border-stone-700 pt-3"><p className="text-xs mb-2">Cử động trong game</p><div className="grid grid-cols-2 gap-1.5">{ACTIONS.map((item) => <button key={item.id} type="button" onClick={() => setAction(item.id)} className={`rounded px-2 py-2 text-xs ${action === item.id ? 'bg-amber-500 text-stone-950' : 'bg-stone-800'}`}>{item.label}</button>)}</div></div></>
         : <p className="text-xs text-stone-400">Tượng trưng bày ở tư thế cố định.</p>}
       <button type="button" onClick={retry} className="flex items-center gap-2 text-xs text-amber-200"><RotateCw className="w-3 h-3" />Tải lại</button>
-      <p className="text-[10px] text-stone-400">Kéo để xoay 360°; lăn chuột hoặc chụm hai ngón để thu phóng. Trục xanh dương là hướng trước.</p>
+      <p className="text-[10px] text-stone-400">Kéo để xoay 360°; lăn chuột hoặc chụm hai ngón để thu phóng. Bật điểm neo để xem hướng gắn đạo cụ.</p>
     </aside>
   </div>;
 };

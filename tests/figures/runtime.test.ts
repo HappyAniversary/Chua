@@ -50,6 +50,48 @@ test('avatar clones isolate skeleton, materials and region colors in either crea
   first.dispose(); second.dispose();
 });
 
+test('hiding the canonical body LOD leaves socket props visible through its bone hierarchy', () => {
+  const source = fixture();
+  const instance = createFigureInstance(source.source, true);
+  const socket = instance.sockets.get('head_socket')!;
+  const prop = new THREE.Mesh(new THREE.SphereGeometry(0.01), new THREE.MeshBasicMaterial());
+  socket.add(prop);
+  instance.setVisible(false);
+  const body = instance.meshes[0] as THREE.SkinnedMesh;
+  assert.equal((body.material as THREE.Material).visible, false, 'alternate body must not draw');
+  assert.equal(instance.scene.getObjectByName('face_detail')!.visible, false, 'alternate face must not draw');
+  for (let ancestor: THREE.Object3D | null = prop; ancestor; ancestor = ancestor.parent) {
+    assert.equal(ancestor.visible, true, `${ancestor.name}: socket prop hidden by parent`);
+  }
+  instance.setVisible(true);
+  assert.equal((body.material as THREE.Material).visible, true);
+  assert.equal(instance.scene.getObjectByName('face_detail')!.visible, true);
+  instance.dispose();
+  prop.geometry.dispose();
+  (prop.material as THREE.Material).dispose();
+});
+
+test('tailored robe recoloring preserves authored shading and never compounds it', () => {
+  const source = fixture();
+  const base = new THREE.Color('#d97706');
+  const colors = source.geometry.getAttribute('color');
+  colors.setXYZ(1, base.r * 0.7, base.g * 0.7, base.b * 0.7);
+  source.mesh.userData.figureRecolor = { robe: '#d97706' };
+  const instance = createFigureInstance(source.source, true);
+  const target = new THREE.Color('#1e3a8a');
+  instance.recolorRobe('#1e3a8a');
+  const tinted = instance.meshes[0].geometry.getAttribute('color');
+  const first = Array.from(tinted.array);
+  for (const [slot, value] of [target.r, target.g, target.b].entries()) {
+    assert.ok(Math.abs(tinted.getComponent(1, slot) - value * 0.7) < 1e-6);
+  }
+  instance.recolorRobe('#991b1b');
+  instance.recolorRobe('#1e3a8a');
+  assert.deepEqual(Array.from(tinted.array), first);
+  assert.equal(colors.getX(1), Math.fround(base.r * 0.7));
+  instance.dispose();
+});
+
 test('resource cleanup disposes only instance-owned data, without cloning on every recolor', () => {
   const source = fixture();
   let sourceGeometryDisposals = 0; let textureDisposals = 0; let ownedGeometryDisposals = 0; let ownedMaterialDisposals = 0;
@@ -98,7 +140,7 @@ test('LOD uses a hysteresis band and one versioned cache URL', () => {
   assert.equal(nextFigureLod(0, 10, 'low'), 1);
   assert.equal(nextFigureLod(0, 10, 'high'), 0);
   assert.equal(nextFigureLod(0, 22, 'balanced', 2), 0);
-  assert.equal(figureAssetUrl('/models/figures/buddha.glb?v=old'), '/models/figures/buddha.glb?v=character-v2');
+  assert.equal(figureAssetUrl('/models/figures/buddha.glb?v=old'), '/models/figures/buddha.glb?v=sculpture-v3');
   assert.equal(figureLodUrl('/models/figures/quanam.glb'), '/models/figures/quanam_lod1.glb');
   assert.equal(figureLodUrl('/models/figures/quanam_lod1.glb'), '/models/figures/quanam_lod1.glb');
 });

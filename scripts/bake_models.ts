@@ -4,7 +4,7 @@ import { bakeMainFigures } from './bake_figures.ts';
 import { bakeArhats } from './bake_arhats.ts';
 import { validateFigureDirectory } from './figures/validate.ts';
 
-const releaseRoot = path.resolve('outputs/character-model-fix');
+const releaseRoot = path.resolve('outputs/model-art-refactor');
 await fs.mkdir(releaseRoot, { recursive: true });
 const stage = await fs.mkdtemp(path.join(releaseRoot, 'staging-'));
 await bakeMainFigures(stage);

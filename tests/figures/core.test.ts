@@ -117,7 +117,7 @@ test('a statue with close garment folds has two faces at every welded surface ed
   assert.equal(invalid.length, 0, `${invalid.length} ambiguous or open statue edges`);
 });
 
-test('both production monk LODs keep connected cloth edges short through all six actions', () => {
+test('legacy SDF monk meshes keep connected cloth edges short through all six actions', () => {
   const figure = createMonkFigureSDF();
   const failures: string[] = [];
   for (const cell of [0.027, 0.044]) {

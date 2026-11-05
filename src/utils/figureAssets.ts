@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { clone as cloneSkeleton } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { GraphicsQuality } from '../types/game';
 
-export const FIGURE_ASSET_VERSION = 'character-v2';
+export const FIGURE_ASSET_VERSION = 'sculpture-v3';
 
 export function figureAssetUrl(url: string): string {
   const [path, query = ''] = url.split('?');
@@ -80,16 +80,39 @@ export function createFigureInstance(source: THREE.Object3D, mutableColors = fal
         const region = mesh.geometry.getAttribute('_regionid') ?? mesh.geometry.getAttribute('regionId');
         const original = originalColors.get(mesh.geometry);
         if (!color || !region || !original) return;
+        const reference = mesh.userData.figureRecolor as { robe?: string; trim?: string } | undefined;
+        const luminance = (r: number, g: number, b: number) => r * 0.2126 + g * 0.7152 + b * 0.0722;
+        const referenceLuminance = (css?: string) => {
+          if (!css) return undefined;
+          const rgb = new THREE.Color(css);
+          return luminance(rgb.r, rgb.g, rgb.b);
+        };
+        const bases = [referenceLuminance(reference?.robe), referenceLuminance(reference?.trim)];
         for (let i = 0; i < color.count; i++) {
           const id = Math.round(region.getX(i));
           const rgb = id === 1 ? robe : id === 2 ? trim : null;
-          if (rgb) color.setXYZ(i, rgb.r, rgb.g, rgb.b);
+          if (rgb) {
+            const base = bases[id - 1];
+            const offset = i * color.itemSize;
+            const shade = base ? luminance(original[offset], original[offset + 1], original[offset + 2]) / base : 1;
+            color.setXYZ(i, rgb.r * shade, rgb.g * shade, rgb.b * shade);
+          }
           else color.setXYZ(i, original[i * color.itemSize], original[i * color.itemSize + 1], original[i * color.itemSize + 2]);
         }
         color.needsUpdate = true;
       });
     },
-    setVisible(visible: boolean) { meshes.forEach((mesh) => { mesh.visible = visible; }); },
+    setVisible(visible: boolean) {
+      meshes.forEach((mesh) => {
+        if ((mesh as THREE.SkinnedMesh).isSkinnedMesh) {
+          // Sockets are children of the canonical skeleton. Hide only its
+          // surface, so props remain reachable while the other LOD is drawn.
+          mesh.visible = true;
+          const surface = Array.isArray(mesh.material) ? mesh.material : [mesh.material];
+          surface.forEach((material) => { material.visible = visible; });
+        } else mesh.visible = visible;
+      });
+    },
     dispose() {
       // Texture maps and immutable geometry remain owned by the useGLTF cache.
       materials.forEach((material) => material.dispose());

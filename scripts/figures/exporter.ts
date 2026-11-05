@@ -99,7 +99,7 @@ export function updateManifest(
   }
 
   manifest.generatedAt = new Date().toISOString();
-  manifest.version = '2.0.0';
+  manifest.version = '3.0.0';
   manifest.figures[entry.id] = entry;
 
   const dir = path.dirname(manifestPath);
